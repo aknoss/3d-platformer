@@ -108,37 +108,6 @@ static Mat4 mat4_look_at(Vec3 eye, Vec3 target, Vec3 up) {
 }
 
 // ============================================================
-// Game Structs
-// ============================================================
-struct Player {
-    Vec3 pos;
-    Vec3 vel;
-    float yaw;
-    bool on_ground;
-};
-
-struct Coin {
-    Vec3 pos;
-    float spin_angle;
-    bool collected;
-};
-
-struct Platform {
-    Vec3 min, max;
-    Vec3 color;
-};
-
-struct Camera {
-    Vec3 pos;
-    float yaw;
-};
-
-struct Mesh {
-    GLuint vao, vbo;
-    int vertex_count;
-};
-
-// ============================================================
 // Constants
 // ============================================================
 static const int SCREEN_W = 800;
@@ -184,14 +153,12 @@ void main() {
 // Geometry Generation
 // ============================================================
 
-// Push a vertex (pos + color) into the buffer
 static void push_vert(std::vector<float>& buf, float x, float y, float z,
                        float r, float g, float b) {
     buf.push_back(x); buf.push_back(y); buf.push_back(z);
     buf.push_back(r); buf.push_back(g); buf.push_back(b);
 }
 
-// Generate a box with face-based shading (top bright, sides medium, bottom dark)
 static std::vector<float> gen_box(Vec3 mn, Vec3 mx, Vec3 col) {
     std::vector<float> buf;
     buf.reserve(36 * 6);
@@ -200,7 +167,6 @@ static std::vector<float> gen_box(Vec3 mn, Vec3 mx, Vec3 col) {
     Vec3 ct = {col.x*top_f, col.y*top_f, col.z*top_f};
     Vec3 cs = {col.x*side_f, col.y*side_f, col.z*side_f};
     Vec3 cb = {col.x*bot_f, col.y*bot_f, col.z*bot_f};
-    // clamp
     auto clamp01 = [](float v) { return v < 0 ? 0 : (v > 1 ? 1 : v); };
     ct = {clamp01(ct.x), clamp01(ct.y), clamp01(ct.z)};
     cs = {clamp01(cs.x), clamp01(cs.y), clamp01(cs.z)};
@@ -241,7 +207,7 @@ static std::vector<float> gen_box(Vec3 mn, Vec3 mx, Vec3 col) {
     push_vert(buf, x0,y1,z0, cs.x,cs.y,cs.z);
     push_vert(buf, x1,y1,z0, cs.x,cs.y,cs.z);
 
-    // Right face (+X) — slightly different shade
+    // Right face (+X)
     Vec3 cs2 = {clamp01(col.x*0.7f), clamp01(col.y*0.7f), clamp01(col.z*0.7f)};
     push_vert(buf, x1,y0,z1, cs2.x,cs2.y,cs2.z);
     push_vert(buf, x1,y0,z0, cs2.x,cs2.y,cs2.z);
@@ -261,7 +227,6 @@ static std::vector<float> gen_box(Vec3 mn, Vec3 mx, Vec3 col) {
     return buf;
 }
 
-// Generate an octagonal coin (8-triangle fan, both sides)
 static std::vector<float> gen_octagon(float radius, float thickness, Vec3 col) {
     std::vector<float> buf;
     const int SIDES = 8;
@@ -270,7 +235,6 @@ static std::vector<float> gen_octagon(float radius, float thickness, Vec3 col) {
                    col.z*1.1f < 1 ? col.z*1.1f : 1.0f};
     Vec3 dark   = {col.x*0.7f, col.y*0.7f, col.z*0.7f};
 
-    // Front face
     for (int i = 0; i < SIDES; i++) {
         float a0 = (float)i / SIDES * 2.0f * (float)M_PI;
         float a1 = (float)(i+1) / SIDES * 2.0f * (float)M_PI;
@@ -278,7 +242,6 @@ static std::vector<float> gen_octagon(float radius, float thickness, Vec3 col) {
         push_vert(buf, cosf(a0)*radius, sinf(a0)*radius, thickness*0.5f, col.x, col.y, col.z);
         push_vert(buf, cosf(a1)*radius, sinf(a1)*radius, thickness*0.5f, col.x, col.y, col.z);
     }
-    // Back face
     for (int i = 0; i < SIDES; i++) {
         float a0 = (float)i / SIDES * 2.0f * (float)M_PI;
         float a1 = (float)(i+1) / SIDES * 2.0f * (float)M_PI;
@@ -286,7 +249,6 @@ static std::vector<float> gen_octagon(float radius, float thickness, Vec3 col) {
         push_vert(buf, cosf(a1)*radius, sinf(a1)*radius, -thickness*0.5f, dark.x, dark.y, dark.z);
         push_vert(buf, cosf(a0)*radius, sinf(a0)*radius, -thickness*0.5f, dark.x, dark.y, dark.z);
     }
-    // Edge ring
     for (int i = 0; i < SIDES; i++) {
         float a0 = (float)i / SIDES * 2.0f * (float)M_PI;
         float a1 = (float)(i+1) / SIDES * 2.0f * (float)M_PI;
@@ -304,76 +266,9 @@ static std::vector<float> gen_octagon(float radius, float thickness, Vec3 col) {
 }
 
 // ============================================================
-// Mesh upload/draw
-// ============================================================
-static Mesh upload_mesh(const std::vector<float>& data) {
-    Mesh m;
-    m.vertex_count = (int)data.size() / 6;
-    glGenVertexArrays(1, &m.vao);
-    glBindVertexArray(m.vao);
-    glGenBuffers(1, &m.vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, m.vbo);
-    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(data.size() * sizeof(float)),
-                 data.data(), GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void*)(3*sizeof(float)));
-    glEnableVertexAttribArray(1);
-    glBindVertexArray(0);
-    return m;
-}
-
-static void draw_mesh(const Mesh& m) {
-    glBindVertexArray(m.vao);
-    glDrawArrays(GL_TRIANGLES, 0, m.vertex_count);
-}
-
-// ============================================================
-// Shader compilation
-// ============================================================
-static GLuint compile_shader(GLenum type, const char* src) {
-    GLuint s = glCreateShader(type);
-    glShaderSource(s, 1, &src, nullptr);
-    glCompileShader(s);
-    GLint ok;
-    glGetShaderiv(s, GL_COMPILE_STATUS, &ok);
-    if (!ok) {
-        char log[512];
-        glGetShaderInfoLog(s, 512, nullptr, log);
-        SDL_Log("Shader compile error: %s", log);
-    }
-    return s;
-}
-
-static GLuint create_program(const char* vs_src, const char* fs_src) {
-    GLuint vs = compile_shader(GL_VERTEX_SHADER, vs_src);
-    GLuint fs = compile_shader(GL_FRAGMENT_SHADER, fs_src);
-    GLuint prog = glCreateProgram();
-    glAttachShader(prog, vs);
-    glAttachShader(prog, fs);
-    glLinkProgram(prog);
-    GLint ok;
-    glGetProgramiv(prog, GL_LINK_STATUS, &ok);
-    if (!ok) {
-        char log[512];
-        glGetProgramInfoLog(prog, 512, nullptr, log);
-        SDL_Log("Program link error: %s", log);
-    }
-    glDeleteShader(vs);
-    glDeleteShader(fs);
-    return prog;
-}
-
-// ============================================================
 // HUD — 7-segment digit rendering
 // ============================================================
 
-// Segment layout for 7-segment display:
-//  _0_
-// |5  |1
-//  _6_
-// |4  |2
-//  _3_
 static const bool SEGMENTS[10][7] = {
     {1,1,1,1,1,1,0}, // 0
     {0,1,1,0,0,0,0}, // 1
@@ -391,26 +286,25 @@ static std::vector<float> gen_hud_digit(int digit, float ox, float oy, float sca
     std::vector<float> buf;
     if (digit < 0 || digit > 9) return buf;
 
-    float w = 4.0f * scale;  // segment width
-    float h = 2.0f * scale;  // segment thickness
-    float dw = w + 2.0f * scale; // digit total width
-    float dh = dw * 2.0f;        // digit total height
+    float w = 4.0f * scale;
+    float h = 2.0f * scale;
+    float dw = w + 2.0f * scale;
+    float dh = dw * 2.0f;
     (void)dh;
 
     struct SegRect { float x, y, sw, sh; };
 
-    // Define each segment as a rectangle
     float sw = w, sh = h;
-    float vw = h, vh = w; // vertical segments are rotated
+    float vw = h, vh = w;
 
     SegRect segs[7] = {
-        {ox + scale, oy + 2*w + 2*scale, sw, sh},   // 0 top
-        {ox + w + scale, oy + w + 2*scale, vw, vh},  // 1 top-right
-        {ox + w + scale, oy + scale, vw, vh},         // 2 bot-right
-        {ox + scale, oy, sw, sh},                      // 3 bottom
-        {ox, oy + scale, vw, vh},                      // 4 bot-left
-        {ox, oy + w + 2*scale, vw, vh},               // 5 top-left
-        {ox + scale, oy + w + scale, sw, sh},         // 6 middle
+        {ox + scale, oy + 2*w + 2*scale, sw, sh},
+        {ox + w + scale, oy + w + 2*scale, vw, vh},
+        {ox + w + scale, oy + scale, vw, vh},
+        {ox + scale, oy, sw, sh},
+        {ox, oy + scale, vw, vh},
+        {ox, oy + w + 2*scale, vw, vh},
+        {ox + scale, oy + w + scale, sw, sh},
     };
 
     Vec3 col = {1.0f, 1.0f, 1.0f};
@@ -429,7 +323,6 @@ static std::vector<float> gen_hud_digit(int digit, float ox, float oy, float sca
     return buf;
 }
 
-// Generate a small coin icon for HUD
 static std::vector<float> gen_hud_coin_icon(float cx, float cy, float radius) {
     std::vector<float> buf;
     const int SIDES = 8;
@@ -445,34 +338,6 @@ static std::vector<float> gen_hud_coin_icon(float cx, float cy, float radius) {
 }
 
 // ============================================================
-// Level Data
-// ============================================================
-static Platform platforms[] = {
-    // Ground
-    {{-15, -0.5f, -15}, {15, 0, 15}, {0.2f, 0.7f, 0.2f}},
-    // Raised platforms
-    {{3, 0, 3},    {7, 1.5f, 7},   {0.6f, 0.4f, 0.2f}},
-    {{-8, 0, -3},  {-4, 2.5f, 1},  {0.5f, 0.5f, 0.5f}},
-    {{-3, 0, 8},   {1, 1.0f, 12},  {0.6f, 0.4f, 0.2f}},
-    {{8, 0, -8},   {12, 3.5f, -4}, {0.5f, 0.5f, 0.5f}},
-    {{-10, 0, -10},{-6, 4.0f, -7}, {0.6f, 0.4f, 0.2f}},
-    {{5, 0, -2},   {9, 2.0f, 2},   {0.5f, 0.5f, 0.5f}},
-};
-static const int NUM_PLATFORMS = sizeof(platforms) / sizeof(platforms[0]);
-
-static Coin coins[] = {
-    {{5, 2.5f, 5}, 0, false},
-    {{-6, 3.5f, -1}, 0, false},
-    {{-1, 2.0f, 10}, 0, false},
-    {{10, 4.5f, -6}, 0, false},
-    {{-8, 5.0f, -8.5f}, 0, false},
-    {{7, 3.0f, 0}, 0, false},
-    {{0, 1.0f, 0}, 0, false},
-    {{-12, 1.0f, 12}, 0, false},
-};
-static const int NUM_COINS = sizeof(coins) / sizeof(coins[0]);
-
-// ============================================================
 // AABB collision
 // ============================================================
 static bool aabb_overlap(Vec3 pmin, Vec3 pmax, Vec3 bmin, Vec3 bmax) {
@@ -480,6 +345,408 @@ static bool aabb_overlap(Vec3 pmin, Vec3 pmax, Vec3 bmin, Vec3 bmax) {
            pmax.y > bmin.y && pmin.y < bmax.y &&
            pmax.z > bmin.z && pmin.z < bmax.z;
 }
+
+// ============================================================
+// Platform data struct
+// ============================================================
+struct PlatformData {
+    Vec3 min, max;
+    Vec3 color;
+};
+
+// ============================================================
+// Mesh — RAII VAO/VBO wrapper
+// ============================================================
+class Mesh {
+public:
+    Mesh() : vao_(0), vbo_(0), vertex_count_(0) {}
+
+    explicit Mesh(const std::vector<float>& data) {
+        vertex_count_ = (int)data.size() / 6;
+        glGenVertexArrays(1, &vao_);
+        glBindVertexArray(vao_);
+        glGenBuffers(1, &vbo_);
+        glBindBuffer(GL_ARRAY_BUFFER, vbo_);
+        glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(data.size() * sizeof(float)),
+                     data.data(), GL_STATIC_DRAW);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void*)0);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void*)(3*sizeof(float)));
+        glEnableVertexAttribArray(1);
+        glBindVertexArray(0);
+    }
+
+    ~Mesh() {
+        if (vbo_ != 0) glDeleteBuffers(1, &vbo_);
+        if (vao_ != 0) glDeleteVertexArrays(1, &vao_);
+    }
+
+    Mesh(const Mesh&) = delete;
+    Mesh& operator=(const Mesh&) = delete;
+
+    Mesh(Mesh&& o) noexcept : vao_(o.vao_), vbo_(o.vbo_), vertex_count_(o.vertex_count_) {
+        o.vao_ = 0; o.vbo_ = 0; o.vertex_count_ = 0;
+    }
+
+    Mesh& operator=(Mesh&& o) noexcept {
+        if (this != &o) {
+            if (vbo_ != 0) glDeleteBuffers(1, &vbo_);
+            if (vao_ != 0) glDeleteVertexArrays(1, &vao_);
+            vao_ = o.vao_; vbo_ = o.vbo_; vertex_count_ = o.vertex_count_;
+            o.vao_ = 0; o.vbo_ = 0; o.vertex_count_ = 0;
+        }
+        return *this;
+    }
+
+    void draw() const {
+        glBindVertexArray(vao_);
+        glDrawArrays(GL_TRIANGLES, 0, vertex_count_);
+    }
+
+    bool valid() const { return vao_ != 0; }
+
+private:
+    GLuint vao_, vbo_;
+    int vertex_count_;
+};
+
+// ============================================================
+// ShaderProgram — wraps GL program + uniforms
+// ============================================================
+static GLuint compile_shader(GLenum type, const char* src) {
+    GLuint s = glCreateShader(type);
+    glShaderSource(s, 1, &src, nullptr);
+    glCompileShader(s);
+    GLint ok;
+    glGetShaderiv(s, GL_COMPILE_STATUS, &ok);
+    if (!ok) {
+        char log[512];
+        glGetShaderInfoLog(s, 512, nullptr, log);
+        SDL_Log("Shader compile error: %s", log);
+    }
+    return s;
+}
+
+class ShaderProgram {
+public:
+    ShaderProgram() : program_(0), mvp_loc_(-1) {}
+
+    ShaderProgram(const char* vs_src, const char* fs_src) {
+        GLuint vs = compile_shader(GL_VERTEX_SHADER, vs_src);
+        GLuint fs = compile_shader(GL_FRAGMENT_SHADER, fs_src);
+        program_ = glCreateProgram();
+        glAttachShader(program_, vs);
+        glAttachShader(program_, fs);
+        glLinkProgram(program_);
+        GLint ok;
+        glGetProgramiv(program_, GL_LINK_STATUS, &ok);
+        if (!ok) {
+            char log[512];
+            glGetProgramInfoLog(program_, 512, nullptr, log);
+            SDL_Log("Program link error: %s", log);
+        }
+        glDeleteShader(vs);
+        glDeleteShader(fs);
+        mvp_loc_ = glGetUniformLocation(program_, "uMVP");
+    }
+
+    void use() const { glUseProgram(program_); }
+    void set_mvp(const Mat4& mvp) const { glUniformMatrix4fv(mvp_loc_, 1, GL_FALSE, mvp.m); }
+
+private:
+    GLuint program_;
+    GLint mvp_loc_;
+};
+
+// ============================================================
+// Camera — smooth third-person follow
+// ============================================================
+class Camera {
+public:
+    Camera() : pos_({0, 4, 6}), yaw_(0) {}
+
+    void follow(Vec3 target_pos, float target_yaw, float dt) {
+        float yaw_diff = target_yaw - yaw_;
+        while (yaw_diff > (float)M_PI)  yaw_diff -= 2.0f * (float)M_PI;
+        while (yaw_diff < -(float)M_PI) yaw_diff += 2.0f * (float)M_PI;
+        yaw_ += yaw_diff * CAM_LERP * dt;
+
+        Vec3 cam_forward = {sinf(yaw_), 0, cosf(yaw_)};
+        pos_ = target_pos - cam_forward * CAM_DIST + Vec3(0, CAM_HEIGHT, 0);
+    }
+
+    Mat4 view_matrix(Vec3 target_pos) const {
+        Vec3 cam_target = target_pos + Vec3(0, 0.75f, 0);
+        return mat4_look_at(pos_, cam_target, {0, 1, 0});
+    }
+
+private:
+    Vec3 pos_;
+    float yaw_;
+};
+
+// ============================================================
+// Player — physics, input, collision, rendering
+// ============================================================
+class Player {
+public:
+    Player() : pos_({0, 1, 0}), vel_({0, 0, 0}), yaw_(0), on_ground_(false),
+               mesh_(gen_box({-HALF_W, 0, -HALF_W}, {HALF_W, HEIGHT, HALF_W}, {0.9f, 0.15f, 0.15f})) {}
+
+    void handle_input(float move, float turn, bool jump, float dt) {
+        yaw_ += turn * TURN_SPEED * dt;
+        Vec3 forward = {sinf(yaw_), 0, cosf(yaw_)};
+        vel_.x = forward.x * move * MOVE_SPEED;
+        vel_.z = forward.z * move * MOVE_SPEED;
+
+        if (jump && on_ground_) {
+            vel_.y = JUMP_VEL;
+            on_ground_ = false;
+        }
+    }
+
+    void update_physics(const PlatformData* platforms, int count, float dt) {
+        vel_.y += GRAVITY * dt;
+        Vec3 new_pos = pos_ + vel_ * dt;
+
+        Vec3 pmin = {new_pos.x - HALF_W, new_pos.y, new_pos.z - HALF_W};
+        Vec3 pmax = {new_pos.x + HALF_W, new_pos.y + HEIGHT, new_pos.z + HALF_W};
+
+        on_ground_ = false;
+
+        for (int i = 0; i < count; i++) {
+            const PlatformData& pl = platforms[i];
+            if (!aabb_overlap(pmin, pmax, pl.min, pl.max)) continue;
+
+            float overlaps[6] = {
+                pmax.x - pl.min.x,
+                pl.max.x - pmin.x,
+                pmax.y - pl.min.y,
+                pl.max.y - pmin.y,
+                pmax.z - pl.min.z,
+                pl.max.z - pmin.z,
+            };
+
+            int min_axis = 0;
+            float min_overlap = overlaps[0];
+            for (int j = 1; j < 6; j++) {
+                if (overlaps[j] < min_overlap) {
+                    min_overlap = overlaps[j];
+                    min_axis = j;
+                }
+            }
+
+            switch (min_axis) {
+                case 0: new_pos.x = pl.min.x - HALF_W;  vel_.x = 0; break;
+                case 1: new_pos.x = pl.max.x + HALF_W;  vel_.x = 0; break;
+                case 2: new_pos.y = pl.min.y - HEIGHT;   vel_.y = 0; break;
+                case 3: new_pos.y = pl.max.y;            vel_.y = 0; on_ground_ = true; break;
+                case 4: new_pos.z = pl.min.z - HALF_W;   vel_.z = 0; break;
+                case 5: new_pos.z = pl.max.z + HALF_W;   vel_.z = 0; break;
+            }
+
+            pmin = {new_pos.x - HALF_W, new_pos.y, new_pos.z - HALF_W};
+            pmax = {new_pos.x + HALF_W, new_pos.y + HEIGHT, new_pos.z + HALF_W};
+        }
+
+        pos_ = new_pos;
+
+        if (pos_.y < RESPAWN_Y) {
+            pos_ = {0, 1, 0};
+            vel_ = {0, 0, 0};
+            on_ground_ = false;
+        }
+    }
+
+    void draw(const ShaderProgram& shader, const Mat4& vp) const {
+        Mat4 model = mat4_translate(pos_) * mat4_rotate_y(yaw_);
+        shader.set_mvp(vp * model);
+        mesh_.draw();
+    }
+
+    Vec3 pos() const { return pos_; }
+    float yaw() const { return yaw_; }
+
+private:
+    static constexpr float HALF_W = 0.5f;
+    static constexpr float HEIGHT = 1.5f;
+
+    Vec3 pos_, vel_;
+    float yaw_;
+    bool on_ground_;
+    Mesh mesh_;
+};
+
+// ============================================================
+// Coin — spinning collectible
+// ============================================================
+class Coin {
+public:
+    Coin() : pos_({0,0,0}), spin_angle_(0), collected_(false) {}
+    Coin(Vec3 pos) : pos_(pos), spin_angle_(0), collected_(false) {}
+
+    void update(float dt) { spin_angle_ += 3.0f * dt; }
+
+    bool try_collect(Vec3 player_pos) {
+        if (collected_) return false;
+        Vec3 diff = player_pos - pos_;
+        diff.y += 0.75f;
+        if (diff.length() < COIN_COLLECT_DIST) {
+            collected_ = true;
+            return true;
+        }
+        return false;
+    }
+
+    void draw(const ShaderProgram& shader, const Mat4& vp, const Mesh& shared_mesh) const {
+        if (collected_) return;
+        Mat4 model = mat4_translate(pos_ + Vec3(0, 0.4f, 0)) * mat4_rotate_y(spin_angle_);
+        shader.set_mvp(vp * model);
+        shared_mesh.draw();
+    }
+
+    bool collected() const { return collected_; }
+
+private:
+    Vec3 pos_;
+    float spin_angle_;
+    bool collected_;
+};
+
+// ============================================================
+// Level — owns platforms, coins, shared coin mesh
+// ============================================================
+class Level {
+public:
+    Level() {
+        PlatformData platform_defs[] = {
+            {{-15, -0.5f, -15}, {15, 0, 15}, {0.2f, 0.7f, 0.2f}},
+            {{3, 0, 3},    {7, 1.5f, 7},   {0.6f, 0.4f, 0.2f}},
+            {{-8, 0, -3},  {-4, 2.5f, 1},  {0.5f, 0.5f, 0.5f}},
+            {{-3, 0, 8},   {1, 1.0f, 12},  {0.6f, 0.4f, 0.2f}},
+            {{8, 0, -8},   {12, 3.5f, -4}, {0.5f, 0.5f, 0.5f}},
+            {{-10, 0, -10},{-6, 4.0f, -7}, {0.6f, 0.4f, 0.2f}},
+            {{5, 0, -2},   {9, 2.0f, 2},   {0.5f, 0.5f, 0.5f}},
+        };
+
+        int num_plats = sizeof(platform_defs) / sizeof(platform_defs[0]);
+        for (int i = 0; i < num_plats; i++) {
+            platforms_.push_back(platform_defs[i]);
+            platform_meshes_.push_back(Mesh(gen_box(platform_defs[i].min, platform_defs[i].max, platform_defs[i].color)));
+        }
+
+        Vec3 coin_positions[] = {
+            {5, 2.5f, 5}, {-6, 3.5f, -1}, {-1, 2.0f, 10}, {10, 4.5f, -6},
+            {-8, 5.0f, -8.5f}, {7, 3.0f, 0}, {0, 1.0f, 0}, {-12, 1.0f, 12},
+        };
+        int num_coins = sizeof(coin_positions) / sizeof(coin_positions[0]);
+        for (int i = 0; i < num_coins; i++) {
+            coins_.push_back(Coin(coin_positions[i]));
+        }
+        total_coins_ = num_coins;
+        coins_collected_ = 0;
+
+        coin_mesh_ = Mesh(gen_octagon(0.4f, 0.1f, {1.0f, 0.85f, 0.0f}));
+    }
+
+    void update(float dt, Vec3 player_pos) {
+        for (auto& c : coins_) {
+            c.update(dt);
+            if (c.try_collect(player_pos)) {
+                coins_collected_++;
+            }
+        }
+    }
+
+    void draw(const ShaderProgram& shader, const Mat4& vp) const {
+        for (size_t i = 0; i < platforms_.size(); i++) {
+            shader.set_mvp(vp);
+            platform_meshes_[i].draw();
+        }
+        for (const auto& c : coins_) {
+            c.draw(shader, vp, coin_mesh_);
+        }
+    }
+
+    const PlatformData* platform_data() const { return platforms_.data(); }
+    int platform_count() const { return (int)platforms_.size(); }
+    int coins_collected() const { return coins_collected_; }
+    int total_coins() const { return total_coins_; }
+
+private:
+    std::vector<PlatformData> platforms_;
+    std::vector<Mesh> platform_meshes_;
+    std::vector<Coin> coins_;
+    Mesh coin_mesh_;
+    int coins_collected_;
+    int total_coins_;
+};
+
+// ============================================================
+// HUD — cached coin counter display
+// ============================================================
+class HUD {
+public:
+    HUD(int total_coins) : cached_collected_(-1), cached_win_h_(-1), total_coins_(total_coins) {}
+
+    void build_static(int win_h) {
+        icon_mesh_ = Mesh(gen_hud_coin_icon(30, (float)win_h - 30, 12));
+
+        std::vector<float> slash;
+        float sx = 80, sy = (float)win_h - 45;
+        push_vert(slash, sx, sy, 0, 1,1,1);
+        push_vert(slash, sx+3, sy, 0, 1,1,1);
+        push_vert(slash, sx+10, sy+20, 0, 1,1,1);
+        push_vert(slash, sx+3, sy, 0, 1,1,1);
+        push_vert(slash, sx+10, sy+20, 0, 1,1,1);
+        push_vert(slash, sx+7, sy+20, 0, 1,1,1);
+        slash_mesh_ = Mesh(slash);
+
+        auto d2 = gen_hud_digit(total_coins_ % 10, 95, (float)win_h - 50, 2.5f);
+        if (!d2.empty()) {
+            total_mesh_ = Mesh(d2);
+        }
+    }
+
+    void update(int coins_collected, int win_h) {
+        if (win_h != cached_win_h_) {
+            build_static(win_h);
+            cached_win_h_ = win_h;
+            cached_collected_ = -1; // force rebuild of collected digit
+        }
+        if (coins_collected != cached_collected_) {
+            auto d1 = gen_hud_digit(coins_collected % 10, 50, (float)win_h - 50, 2.5f);
+            if (!d1.empty()) {
+                collected_mesh_ = Mesh(d1);
+            } else {
+                collected_mesh_ = Mesh();
+            }
+            cached_collected_ = coins_collected;
+        }
+    }
+
+    void draw(const ShaderProgram& shader, int win_w, int win_h) const {
+        glDisable(GL_DEPTH_TEST);
+        Mat4 ortho = mat4_ortho(0, (float)win_w, 0, (float)win_h, -1, 1);
+        shader.set_mvp(ortho);
+
+        if (icon_mesh_.valid()) icon_mesh_.draw();
+        if (collected_mesh_.valid()) collected_mesh_.draw();
+        if (slash_mesh_.valid()) slash_mesh_.draw();
+        if (total_mesh_.valid()) total_mesh_.draw();
+
+        glEnable(GL_DEPTH_TEST);
+    }
+
+private:
+    Mesh icon_mesh_;
+    Mesh collected_mesh_;
+    Mesh slash_mesh_;
+    Mesh total_mesh_;
+    int cached_collected_;
+    int cached_win_h_;
+    int total_coins_;
+};
 
 // ============================================================
 // Main
@@ -511,54 +778,33 @@ int main(int /*argc*/, char* /*argv*/[]) {
         SDL_Quit();
         return 1;
     }
-    SDL_GL_SetSwapInterval(1); // vsync
-
-    // Compile shaders
-    GLuint program = create_program(VERT_SRC, FRAG_SRC);
-    GLint mvp_loc = glGetUniformLocation(program, "uMVP");
-
-    // Generate platform meshes
-    Mesh platform_meshes[NUM_PLATFORMS];
-    for (int i = 0; i < NUM_PLATFORMS; i++) {
-        auto data = gen_box(platforms[i].min, platforms[i].max, platforms[i].color);
-        platform_meshes[i] = upload_mesh(data);
-    }
-
-    // Player mesh
-    auto player_data = gen_box({-0.5f, 0, -0.5f}, {0.5f, 1.5f, 0.5f}, {0.9f, 0.15f, 0.15f});
-    Mesh player_mesh = upload_mesh(player_data);
-
-    // Coin mesh
-    auto coin_data = gen_octagon(0.4f, 0.1f, {1.0f, 0.85f, 0.0f});
-    Mesh coin_mesh = upload_mesh(coin_data);
-
-    // Init game state
-    Player player = {{0, 1, 0}, {0,0,0}, 0, false};
-    Camera cam = {{0, 4, 6}, 0};
-    int coins_collected = 0;
+    SDL_GL_SetSwapInterval(1);
 
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LEQUAL);
     glClearColor(0.4f, 0.6f, 1.0f, 1.0f);
 
+    ShaderProgram shader(VERT_SRC, FRAG_SRC);
+    Level level;
+    Player player;
+    Camera camera;
+    HUD hud(level.total_coins());
+
     Uint64 last_time = SDL_GetTicksNS();
     bool running = true;
 
     while (running) {
-        // Delta time
         Uint64 now = SDL_GetTicksNS();
         float dt = (float)(now - last_time) / 1e9f;
         last_time = now;
         if (dt > 0.05f) dt = 0.05f;
 
-        // Events
         SDL_Event ev;
         while (SDL_PollEvent(&ev)) {
             if (ev.type == SDL_EVENT_QUIT) running = false;
             if (ev.type == SDL_EVENT_KEY_DOWN && ev.key.key == SDLK_ESCAPE) running = false;
         }
 
-        // Input
         const bool* keys = SDL_GetKeyboardState(nullptr);
         float move_input = 0, turn_input = 0;
         if (keys[SDL_SCANCODE_W] || keys[SDL_SCANCODE_UP])    move_input += 1;
@@ -567,196 +813,30 @@ int main(int /*argc*/, char* /*argv*/[]) {
         if (keys[SDL_SCANCODE_D] || keys[SDL_SCANCODE_RIGHT]) turn_input -= 1;
         bool jump_pressed = keys[SDL_SCANCODE_SPACE];
 
-        // Player movement (tank controls)
-        player.yaw += turn_input * TURN_SPEED * dt;
-        Vec3 forward = {sinf(player.yaw), 0, cosf(player.yaw)};
-        player.vel.x = forward.x * move_input * MOVE_SPEED;
-        player.vel.z = forward.z * move_input * MOVE_SPEED;
+        player.handle_input(move_input, turn_input, jump_pressed, dt);
+        player.update_physics(level.platform_data(), level.platform_count(), dt);
+        level.update(dt, player.pos());
+        camera.follow(player.pos(), player.yaw(), dt);
 
-        // Jump
-        if (jump_pressed && player.on_ground) {
-            player.vel.y = JUMP_VEL;
-            player.on_ground = false;
-        }
-
-        // Gravity
-        player.vel.y += GRAVITY * dt;
-
-        // Move + collide
-        Vec3 new_pos = player.pos + player.vel * dt;
-
-        // Player AABB (0.5 half-width, 1.5 height)
-        Vec3 pmin = {new_pos.x - 0.5f, new_pos.y, new_pos.z - 0.5f};
-        Vec3 pmax = {new_pos.x + 0.5f, new_pos.y + 1.5f, new_pos.z + 0.5f};
-
-        player.on_ground = false;
-
-        for (int i = 0; i < NUM_PLATFORMS; i++) {
-            Platform& pl = platforms[i];
-            if (!aabb_overlap(pmin, pmax, pl.min, pl.max)) continue;
-
-            // Determine push-out direction (smallest overlap axis)
-            float overlaps[6] = {
-                pmax.x - pl.min.x, // push -x
-                pl.max.x - pmin.x, // push +x
-                pmax.y - pl.min.y, // push -y
-                pl.max.y - pmin.y, // push +y
-                pmax.z - pl.min.z, // push -z
-                pl.max.z - pmin.z, // push +z
-            };
-
-            int min_axis = 0;
-            float min_overlap = overlaps[0];
-            for (int j = 1; j < 6; j++) {
-                if (overlaps[j] < min_overlap) {
-                    min_overlap = overlaps[j];
-                    min_axis = j;
-                }
-            }
-
-            switch (min_axis) {
-                case 0: new_pos.x = pl.min.x - 0.5f; player.vel.x = 0; break;
-                case 1: new_pos.x = pl.max.x + 0.5f; player.vel.x = 0; break;
-                case 2: new_pos.y = pl.min.y - 1.5f; player.vel.y = 0; break;
-                case 3: new_pos.y = pl.max.y;         player.vel.y = 0; player.on_ground = true; break;
-                case 4: new_pos.z = pl.min.z - 0.5f; player.vel.z = 0; break;
-                case 5: new_pos.z = pl.max.z + 0.5f; player.vel.z = 0; break;
-            }
-
-            // Recompute AABB after push
-            pmin = {new_pos.x - 0.5f, new_pos.y, new_pos.z - 0.5f};
-            pmax = {new_pos.x + 0.5f, new_pos.y + 1.5f, new_pos.z + 0.5f};
-        }
-
-        player.pos = new_pos;
-
-        // Respawn
-        if (player.pos.y < RESPAWN_Y) {
-            player.pos = {0, 1, 0};
-            player.vel = {0, 0, 0};
-            player.on_ground = false;
-        }
-
-        // Coin collection
-        for (int i = 0; i < NUM_COINS; i++) {
-            if (coins[i].collected) continue;
-            Vec3 diff = player.pos - coins[i].pos;
-            diff.y += 0.75f; // compare to player center
-            if (diff.length() < COIN_COLLECT_DIST) {
-                coins[i].collected = true;
-                coins_collected++;
-            }
-        }
-
-        // Coin spin
-        for (int i = 0; i < NUM_COINS; i++) {
-            coins[i].spin_angle += 3.0f * dt;
-        }
-
-        // Camera
-        // Smoothly lerp yaw toward player yaw
-        float yaw_diff = player.yaw - cam.yaw;
-        // Normalize to [-pi, pi]
-        while (yaw_diff > (float)M_PI)  yaw_diff -= 2.0f * (float)M_PI;
-        while (yaw_diff < -(float)M_PI) yaw_diff += 2.0f * (float)M_PI;
-        cam.yaw += yaw_diff * CAM_LERP * dt;
-
-        Vec3 cam_forward = {sinf(cam.yaw), 0, cosf(cam.yaw)};
-        cam.pos = player.pos - cam_forward * CAM_DIST + Vec3(0, CAM_HEIGHT, 0);
-        Vec3 cam_target = player.pos + Vec3(0, 0.75f, 0);
-
-        // ---- Rendering ----
         int win_w, win_h;
         SDL_GetWindowSizeInPixels(window, &win_w, &win_h);
+        hud.update(level.coins_collected(), win_h);
+
         glViewport(0, 0, win_w, win_h);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glUseProgram(program);
 
-        Mat4 view = mat4_look_at(cam.pos, cam_target, {0,1,0});
+        shader.use();
+        Mat4 view = camera.view_matrix(player.pos());
         Mat4 proj = mat4_perspective(FOV, (float)win_w / (float)win_h, NEAR_PLANE, FAR_PLANE);
         Mat4 vp = proj * view;
 
-        // Draw platforms
-        for (int i = 0; i < NUM_PLATFORMS; i++) {
-            Mat4 model = Mat4::identity();
-            Mat4 mvp = vp * model;
-            glUniformMatrix4fv(mvp_loc, 1, GL_FALSE, mvp.m);
-            draw_mesh(platform_meshes[i]);
-        }
-
-        // Draw player
-        {
-            Mat4 model = mat4_translate(player.pos) * mat4_rotate_y(player.yaw);
-            Mat4 mvp = vp * model;
-            glUniformMatrix4fv(mvp_loc, 1, GL_FALSE, mvp.m);
-            draw_mesh(player_mesh);
-        }
-
-        // Draw coins
-        for (int i = 0; i < NUM_COINS; i++) {
-            if (coins[i].collected) continue;
-            Mat4 model = mat4_translate(coins[i].pos + Vec3(0, 0.4f, 0))
-                       * mat4_rotate_y(coins[i].spin_angle);
-            Mat4 mvp = vp * model;
-            glUniformMatrix4fv(mvp_loc, 1, GL_FALSE, mvp.m);
-            draw_mesh(coin_mesh);
-        }
-
-        // ---- HUD ----
-        glDisable(GL_DEPTH_TEST);
-        Mat4 ortho = mat4_ortho(0, (float)win_w, 0, (float)win_h, -1, 1);
-
-        // Coin icon
-        {
-            auto icon_data = gen_hud_coin_icon(30, (float)win_h - 30, 12);
-            Mesh icon = upload_mesh(icon_data);
-            glUniformMatrix4fv(mvp_loc, 1, GL_FALSE, ortho.m);
-            draw_mesh(icon);
-            // We leak these VBOs — acceptable for a simple game
-            // In production, we'd cache or delete them
-        }
-
-        // Digit: coins_collected
-        {
-            auto d1 = gen_hud_digit(coins_collected % 10, 50, (float)win_h - 50, 2.5f);
-            if (!d1.empty()) {
-                Mesh dm = upload_mesh(d1);
-                glUniformMatrix4fv(mvp_loc, 1, GL_FALSE, ortho.m);
-                draw_mesh(dm);
-            }
-        }
-
-        // Slash
-        {
-            std::vector<float> slash;
-            float sx = 80, sy = (float)win_h - 45;
-            push_vert(slash, sx, sy, 0, 1,1,1);
-            push_vert(slash, sx+3, sy, 0, 1,1,1);
-            push_vert(slash, sx+10, sy+20, 0, 1,1,1);
-            push_vert(slash, sx+3, sy, 0, 1,1,1);
-            push_vert(slash, sx+10, sy+20, 0, 1,1,1);
-            push_vert(slash, sx+7, sy+20, 0, 1,1,1);
-            Mesh sm = upload_mesh(slash);
-            glUniformMatrix4fv(mvp_loc, 1, GL_FALSE, ortho.m);
-            draw_mesh(sm);
-        }
-
-        // Total coins
-        {
-            auto d2 = gen_hud_digit(NUM_COINS % 10, 95, (float)win_h - 50, 2.5f);
-            if (!d2.empty()) {
-                Mesh dm = upload_mesh(d2);
-                glUniformMatrix4fv(mvp_loc, 1, GL_FALSE, ortho.m);
-                draw_mesh(dm);
-            }
-        }
-
-        glEnable(GL_DEPTH_TEST);
+        level.draw(shader, vp);
+        player.draw(shader, vp);
+        hud.draw(shader, win_w, win_h);
 
         SDL_GL_SwapWindow(window);
     }
 
-    // Cleanup
     SDL_GL_DestroyContext(gl_ctx);
     SDL_DestroyWindow(window);
     SDL_Quit();
