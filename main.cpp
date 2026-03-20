@@ -497,7 +497,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 
     SDL_Window* window = SDL_CreateWindow("SM64 Platformer", SCREEN_W, SCREEN_H,
-                                          SDL_WINDOW_OPENGL);
+                                          SDL_WINDOW_OPENGL | SDL_WINDOW_FULLSCREEN);
     if (!window) {
         SDL_Log("Window creation failed: %s", SDL_GetError());
         SDL_Quit();
@@ -666,12 +666,14 @@ int main(int /*argc*/, char* /*argv*/[]) {
         Vec3 cam_target = player.pos + Vec3(0, 0.75f, 0);
 
         // ---- Rendering ----
-        glViewport(0, 0, SCREEN_W, SCREEN_H);
+        int win_w, win_h;
+        SDL_GetWindowSizeInPixels(window, &win_w, &win_h);
+        glViewport(0, 0, win_w, win_h);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glUseProgram(program);
 
         Mat4 view = mat4_look_at(cam.pos, cam_target, {0,1,0});
-        Mat4 proj = mat4_perspective(FOV, (float)SCREEN_W / SCREEN_H, NEAR_PLANE, FAR_PLANE);
+        Mat4 proj = mat4_perspective(FOV, (float)win_w / (float)win_h, NEAR_PLANE, FAR_PLANE);
         Mat4 vp = proj * view;
 
         // Draw platforms
@@ -702,11 +704,11 @@ int main(int /*argc*/, char* /*argv*/[]) {
 
         // ---- HUD ----
         glDisable(GL_DEPTH_TEST);
-        Mat4 ortho = mat4_ortho(0, (float)SCREEN_W, 0, (float)SCREEN_H, -1, 1);
+        Mat4 ortho = mat4_ortho(0, (float)win_w, 0, (float)win_h, -1, 1);
 
         // Coin icon
         {
-            auto icon_data = gen_hud_coin_icon(30, (float)SCREEN_H - 30, 12);
+            auto icon_data = gen_hud_coin_icon(30, (float)win_h - 30, 12);
             Mesh icon = upload_mesh(icon_data);
             glUniformMatrix4fv(mvp_loc, 1, GL_FALSE, ortho.m);
             draw_mesh(icon);
@@ -716,7 +718,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
 
         // Digit: coins_collected
         {
-            auto d1 = gen_hud_digit(coins_collected % 10, 50, (float)SCREEN_H - 50, 2.5f);
+            auto d1 = gen_hud_digit(coins_collected % 10, 50, (float)win_h - 50, 2.5f);
             if (!d1.empty()) {
                 Mesh dm = upload_mesh(d1);
                 glUniformMatrix4fv(mvp_loc, 1, GL_FALSE, ortho.m);
@@ -727,7 +729,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
         // Slash
         {
             std::vector<float> slash;
-            float sx = 80, sy = (float)SCREEN_H - 45;
+            float sx = 80, sy = (float)win_h - 45;
             push_vert(slash, sx, sy, 0, 1,1,1);
             push_vert(slash, sx+3, sy, 0, 1,1,1);
             push_vert(slash, sx+10, sy+20, 0, 1,1,1);
@@ -741,7 +743,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
 
         // Total coins
         {
-            auto d2 = gen_hud_digit(NUM_COINS % 10, 95, (float)SCREEN_H - 50, 2.5f);
+            auto d2 = gen_hud_digit(NUM_COINS % 10, 95, (float)win_h - 50, 2.5f);
             if (!d2.empty()) {
                 Mesh dm = upload_mesh(d2);
                 glUniformMatrix4fv(mvp_loc, 1, GL_FALSE, ortho.m);
