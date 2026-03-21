@@ -19,17 +19,19 @@ void Player::handle_input(float move_x, float move_z, float cam_yaw, bool jump) 
     Vec3 wish_dir = cam_fwd * move_z + cam_right * move_x;
     float len = sqrtf(wish_dir.x * wish_dir.x + wish_dir.z * wish_dir.z);
 
-    if (len > 0.001f) {
-        wish_dir.x /= len;
-        wish_dir.z /= len;
-        vel_.x = wish_dir.x * MOVE_SPEED;
-        vel_.z = wish_dir.z * MOVE_SPEED;
-        // Face movement direction
-        yaw_ = atan2f(wish_dir.x, wish_dir.z);
-    } else {
-        vel_.x = 0;
-        vel_.z = 0;
-    }
+    if (on_ground_) {
+        if (len > 0.001f) {
+            wish_dir.x /= len;
+            wish_dir.z /= len;
+            vel_.x = wish_dir.x * MOVE_SPEED;
+            vel_.z = wish_dir.z * MOVE_SPEED;
+            yaw_ = atan2f(wish_dir.x, wish_dir.z);
+        } else {
+            vel_.x = 0;
+            vel_.z = 0;
+        }
+    } 
+    // No user movement on air
 
     if (jump && on_ground_) {
         vel_.y = JUMP_VEL;
