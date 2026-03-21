@@ -10,11 +10,26 @@ bool aabb_overlap(Vec3 pmin, Vec3 pmax, Vec3 bmin, Vec3 bmax) {
 Player::Player() : pos_({0, 1, 0}), vel_({0, 0, 0}), yaw_(0), on_ground_(false),
            mesh_(gen_box({-HALF_W, 0, -HALF_W}, {HALF_W, HEIGHT, HALF_W}, {0.9f, 0.15f, 0.15f})) {}
 
-void Player::handle_input(float move, float turn, bool jump, float dt) {
-    yaw_ += turn * TURN_SPEED * dt;
-    Vec3 forward = {sinf(yaw_), 0, cosf(yaw_)};
-    vel_.x = forward.x * move * MOVE_SPEED;
-    vel_.z = forward.z * move * MOVE_SPEED;
+void Player::handle_input(float move_x, float move_z, float cam_yaw, bool jump) {
+    // Build camera-relative direction vectors
+    Vec3 cam_fwd = {sinf(cam_yaw), 0, cosf(cam_yaw)};
+    Vec3 cam_right = {cam_fwd.z, 0, -cam_fwd.x};
+
+    // Compute world-space movement from input
+    Vec3 wish_dir = cam_fwd * move_z + cam_right * move_x;
+    float len = sqrtf(wish_dir.x * wish_dir.x + wish_dir.z * wish_dir.z);
+
+    if (len > 0.001f) {
+        wish_dir.x /= len;
+        wish_dir.z /= len;
+        vel_.x = wish_dir.x * MOVE_SPEED;
+        vel_.z = wish_dir.z * MOVE_SPEED;
+        // Face movement direction
+        yaw_ = atan2f(wish_dir.x, wish_dir.z);
+    } else {
+        vel_.x = 0;
+        vel_.z = 0;
+    }
 
     if (jump && on_ground_) {
         vel_.y = JUMP_VEL;

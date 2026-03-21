@@ -33,10 +33,11 @@ All headers use both `#pragma once` and `#ifndef`/`#define`/`#endif` guards.
 
 ## Controls
 
-- W/Up: Move forward
-- S/Down: Move backward
-- A/Left: Turn left
-- D/Right: Turn right
+- W/Up: Move forward (camera-relative)
+- S/Down: Move backward (camera-relative)
+- A/Left: Strafe left (camera-relative)
+- D/Right: Strafe right (camera-relative)
+- Mouse: Rotate camera
 - Space: Jump
 - Escape: Quit
 
@@ -44,5 +45,5 @@ All headers use both `#pragma once` and `#ifndef`/`#define`/`#endif` guards.
 
 - All geometry is flat-shaded colored vertices (no textures)
 - Fake directional lighting baked into vertex colors (top bright, sides medium, bottom dark)
-- Tank controls (turn + forward/back, no strafing)
+- Camera-relative movement with mouse look; player faces movement direction
 - AABB collision with axis-aligned push-out resolution

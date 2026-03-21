@@ -15,6 +15,7 @@ inline constexpr float CAM_LERP = 5.0f;
 inline constexpr float FOV = 60.0f;
 inline constexpr float NEAR_PLANE = 0.1f;
 inline constexpr float FAR_PLANE = 100.0f;
+inline constexpr float MOUSE_SENS = 0.003f;
 inline constexpr float COIN_COLLECT_DIST = 1.2f;
 inline constexpr float RESPAWN_Y = -10.0f;
 // ~16.67ms per frame (60 FPS cap)

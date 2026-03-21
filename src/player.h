@@ -16,7 +16,7 @@ class Player {
 public:
     Player();
 
-    void handle_input(float move, float turn, bool jump, float dt);
+    void handle_input(float move_x, float move_z, float cam_yaw, bool jump);
     void update_physics(const PlatformData* platforms, int count, float dt);
     void draw(const ShaderProgram& shader, const Mat4& vp) const;
 

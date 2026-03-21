@@ -49,6 +49,8 @@ int main(int /*argc*/, char* /*argv*/[]) {
     Camera camera;
     HUD hud;
 
+    SDL_SetWindowRelativeMouseMode(window, true);
+
     Uint64 last_time = SDL_GetTicksNS();
     bool running = true;
 
@@ -58,24 +60,27 @@ int main(int /*argc*/, char* /*argv*/[]) {
         last_time = now;
         if (dt > 0.05f) dt = 0.05f;
 
+        float mouse_dx = 0;
         SDL_Event ev;
         while (SDL_PollEvent(&ev)) {
             if (ev.type == SDL_EVENT_QUIT) running = false;
             if (ev.type == SDL_EVENT_KEY_DOWN && ev.key.key == SDLK_ESCAPE) running = false;
+            if (ev.type == SDL_EVENT_MOUSE_MOTION) mouse_dx += ev.motion.xrel;
         }
 
         const bool* keys = SDL_GetKeyboardState(nullptr);
-        float move_input = 0, turn_input = 0;
-        if (keys[SDL_SCANCODE_W] || keys[SDL_SCANCODE_UP])    move_input += 1;
-        if (keys[SDL_SCANCODE_S] || keys[SDL_SCANCODE_DOWN])  move_input -= 1;
-        if (keys[SDL_SCANCODE_A] || keys[SDL_SCANCODE_LEFT])  turn_input += 1;
-        if (keys[SDL_SCANCODE_D] || keys[SDL_SCANCODE_RIGHT]) turn_input -= 1;
+        float move_x = 0, move_z = 0;
+        if (keys[SDL_SCANCODE_W] || keys[SDL_SCANCODE_UP])    move_z += 1;
+        if (keys[SDL_SCANCODE_S] || keys[SDL_SCANCODE_DOWN])  move_z -= 1;
+        if (keys[SDL_SCANCODE_A] || keys[SDL_SCANCODE_LEFT])  move_x += 1;
+        if (keys[SDL_SCANCODE_D] || keys[SDL_SCANCODE_RIGHT]) move_x -= 1;
         bool jump_pressed = keys[SDL_SCANCODE_SPACE];
 
-        player.handle_input(move_input, turn_input, jump_pressed, dt);
+        camera.rotate(mouse_dx);
+        player.handle_input(move_x, move_z, camera.yaw(), jump_pressed);
         player.update_physics(level.platform_data(), level.platform_count(), dt);
         level.update(dt, player.pos());
-        camera.follow(player.pos(), player.yaw(), dt);
+        camera.follow(player.pos(), dt);
 
         int win_w, win_h;
         SDL_GetWindowSizeInPixels(window, &win_w, &win_h);
