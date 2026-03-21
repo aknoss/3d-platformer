@@ -47,7 +47,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
     Level level;
     Player player;
     Camera camera;
-    HUD hud(level.total_coins());
+    HUD hud;
 
     Uint64 last_time = SDL_GetTicksNS();
     bool running = true;
