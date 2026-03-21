@@ -94,6 +94,13 @@ int main(int /*argc*/, char* /*argv*/[]) {
         hud.draw(shader, win_w, win_h);
 
         SDL_GL_SwapWindow(window);
+
+        // 60 FPS cap
+        Uint64 frame_end = SDL_GetTicksNS();
+        Uint64 frame_time = frame_end - now;
+        if (frame_time < FRAME_TIME_NS) {
+            SDL_DelayNS(FRAME_TIME_NS - frame_time);
+        }
     }
 
     SDL_GL_DestroyContext(gl_ctx);
