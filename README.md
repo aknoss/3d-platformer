@@ -14,5 +14,6 @@ make clean    # removes binary and .o files
 ## Run
 
 ```bash
+cd build
 ./game
 ```
