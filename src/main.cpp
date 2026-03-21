@@ -1,4 +1,3 @@
-// SM64-Style 3D Platformer — SDL3 + OpenGL 3.3 Core
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 #define GL_GLEXT_PROTOTYPES
