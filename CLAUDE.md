@@ -41,6 +41,14 @@ All headers use both `#pragma once` and `#ifndef`/`#define`/`#endif` guards.
 - Space: Jump
 - Escape: Quit
 
+## Formatting
+
+Run `clang-format` after any code changes:
+
+```bash
+clang-format -i src/*.cpp src/*.h
+```
+
 ## Conventions
 
 - All geometry is flat-shaded colored vertices (no textures)
