@@ -17,19 +17,32 @@ struct ObjModel {
   std::vector<ObjVertex> vertices;
 };
 
-inline ObjModel load_obj(const char *path) {
+inline ObjModel load_obj_from_memory(const unsigned char *data,
+                                     unsigned int len) {
   ObjModel model;
 
-  FILE *f = fopen(path, "r");
-  if (!f)
-    return model;
+  std::vector<float> positions;
+  std::vector<float> texcoords;
+  std::vector<float> normals;
 
-  std::vector<float> positions; // x,y,z triples
-  std::vector<float> texcoords; // u,v pairs
-  std::vector<float> normals;   // x,y,z triples
+  const char *src = (const char *)data;
+  const char *end = src + len;
 
-  char line[256];
-  while (fgets(line, sizeof(line), f)) {
+  while (src < end) {
+    // Extract one line
+    const char *line_end = src;
+    while (line_end < end && *line_end != '\n')
+      line_end++;
+
+    char line[256];
+    int line_len = (int)(line_end - src);
+    if (line_len >= (int)sizeof(line))
+      line_len = (int)sizeof(line) - 1;
+    memcpy(line, src, line_len);
+    line[line_len] = '\0';
+
+    src = line_end + 1;
+
     if (line[0] == 'v' && line[1] == ' ') {
       float x, y, z;
       sscanf(line + 2, "%f %f %f", &x, &y, &z);
@@ -88,7 +101,6 @@ inline ObjModel load_obj(const char *path) {
         return v;
       };
 
-      // Triangle fan for 3 or 4 vertex faces
       for (int i = 1; i < count - 1; i++) {
         model.vertices.push_back(make_vert(0));
         model.vertices.push_back(make_vert(i));
@@ -97,7 +109,6 @@ inline ObjModel load_obj(const char *path) {
     }
   }
 
-  fclose(f);
   return model;
 }
 

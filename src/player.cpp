@@ -2,6 +2,9 @@
 #include "obj_loader.h"
 #include <cmath>
 
+#include "character_obj.h"
+#include "character_tex.h"
+
 bool aabb_overlap(Vec3 pmin, Vec3 pmax, Vec3 bmin, Vec3 bmax) {
   return pmax.x > bmin.x && pmin.x < bmax.x && pmax.y > bmin.y &&
          pmin.y < bmax.y && pmax.z > bmin.z && pmin.z < bmax.z;
@@ -9,7 +12,8 @@ bool aabb_overlap(Vec3 pmin, Vec3 pmax, Vec3 bmin, Vec3 bmax) {
 
 Player::Player()
     : pos_({0, 1, 0}), vel_({0, 0, 0}), yaw_(0), on_ground_(false) {
-  ObjModel model = load_obj("assets/character.obj");
+  ObjModel model =
+      load_obj_from_memory(assets_character_obj, assets_character_obj_len);
 
   // Pack into pos(3) + normal(3) + uv(2) buffer
   std::vector<float> buf;
@@ -25,7 +29,8 @@ Player::Player()
     buf.push_back(v.v);
   }
 
-  GLuint tex = load_texture("assets/texture-character.png");
+  GLuint tex = load_texture_from_memory(assets_texture_character_png,
+                                        assets_texture_character_png_len);
   mesh_ = TexturedMesh(buf, tex);
   tex_shader_ = ShaderProgram::create_textured();
 }

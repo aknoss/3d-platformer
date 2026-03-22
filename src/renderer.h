@@ -156,7 +156,7 @@ private:
   int vertex_count_;
 };
 
-GLuint load_texture(const char *path);
+GLuint load_texture_from_memory(const unsigned char *data, unsigned int len);
 
 class ShaderProgram {
 public:

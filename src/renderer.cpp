@@ -105,12 +105,13 @@ ShaderProgram ShaderProgram::create_textured() {
   return ShaderProgram(program, mvp_loc, tex_loc);
 }
 
-GLuint load_texture(const char *path) {
+GLuint load_texture_from_memory(const unsigned char *data, unsigned int len) {
   int w, h, channels;
   stbi_set_flip_vertically_on_load(1);
-  unsigned char *data = stbi_load(path, &w, &h, &channels, 4);
-  if (!data) {
-    SDL_Log("Failed to load texture: %s", path);
+  unsigned char *pixels =
+      stbi_load_from_memory(data, (int)len, &w, &h, &channels, 4);
+  if (!pixels) {
+    SDL_Log("Failed to load texture from memory");
     return 0;
   }
 
@@ -118,12 +119,12 @@ GLuint load_texture(const char *path) {
   glGenTextures(1, &tex);
   glBindTexture(GL_TEXTURE_2D, tex);
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE,
-               data);
+               pixels);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
-  stbi_image_free(data);
+  stbi_image_free(pixels);
   return tex;
 }
