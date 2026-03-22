@@ -65,6 +65,16 @@ inline Mat4 mat4_scale(float s) {
   return r;
 }
 
+inline Mat4 mat4_rotate_x(float angle) {
+  Mat4 r = Mat4::identity();
+  float c = cosf(angle), s = sinf(angle);
+  r.m[5] = c;
+  r.m[6] = s;
+  r.m[9] = -s;
+  r.m[10] = c;
+  return r;
+}
+
 inline Mat4 mat4_rotate_y(float angle) {
   Mat4 r = Mat4::identity();
   float c = cosf(angle), s = sinf(angle);

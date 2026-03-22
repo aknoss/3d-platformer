@@ -158,6 +158,110 @@ inline void glb_collect_node(const cgltf_node *node, const GlbMat4 &parent,
     glb_collect_node(node->children[ci], world, model);
 }
 
+struct GlbPart {
+  std::string name;
+  std::vector<GlbVertex> vertices;
+  float pivot_x, pivot_y, pivot_z; // translation relative to parent
+};
+
+struct GlbPartsModel {
+  std::vector<GlbPart> parts;
+};
+
+inline void glb_collect_part(const cgltf_node *node, const GlbMat4 &parent,
+                             GlbPartsModel &model) {
+  GlbMat4 world = glb_mat4_mul(parent, glb_node_local_transform(node));
+
+  if (node->mesh) {
+    GlbPart part;
+    part.name = node->name ? node->name : "";
+    // Store world-space pivot (local translation transformed by parent)
+    float lx = node->has_translation ? node->translation[0] : 0;
+    float ly = node->has_translation ? node->translation[1] : 0;
+    float lz = node->has_translation ? node->translation[2] : 0;
+    part.pivot_x =
+        parent.m[0] * lx + parent.m[4] * ly + parent.m[8] * lz + parent.m[12];
+    part.pivot_y =
+        parent.m[1] * lx + parent.m[5] * ly + parent.m[9] * lz + parent.m[13];
+    part.pivot_z =
+        parent.m[2] * lx + parent.m[6] * ly + parent.m[10] * lz + parent.m[14];
+
+    cgltf_mesh *mesh = node->mesh;
+    for (cgltf_size pi = 0; pi < mesh->primitives_count; pi++) {
+      cgltf_primitive *prim = &mesh->primitives[pi];
+      cgltf_accessor *pos_acc = nullptr;
+      cgltf_accessor *norm_acc = nullptr;
+      cgltf_accessor *uv_acc = nullptr;
+
+      for (cgltf_size ai = 0; ai < prim->attributes_count; ai++) {
+        if (prim->attributes[ai].type == cgltf_attribute_type_position)
+          pos_acc = prim->attributes[ai].data;
+        else if (prim->attributes[ai].type == cgltf_attribute_type_normal)
+          norm_acc = prim->attributes[ai].data;
+        else if (prim->attributes[ai].type == cgltf_attribute_type_texcoord)
+          uv_acc = prim->attributes[ai].data;
+      }
+      if (!pos_acc)
+        continue;
+
+      auto read_vert = [&](cgltf_size vi) {
+        GlbVertex vert = {};
+        cgltf_accessor_read_float(pos_acc, vi, &vert.x, 3);
+        if (norm_acc)
+          cgltf_accessor_read_float(norm_acc, vi, &vert.nx, 3);
+        if (uv_acc)
+          cgltf_accessor_read_float(uv_acc, vi, &vert.u, 2);
+        // Transform by world matrix (bake full transform into vertices)
+        glb_transform_vertex(world, vert);
+        part.vertices.push_back(vert);
+      };
+
+      if (prim->indices) {
+        cgltf_accessor *idx_acc = prim->indices;
+        for (cgltf_size i = 0; i < idx_acc->count; i++)
+          read_vert(cgltf_accessor_read_index(idx_acc, i));
+      } else {
+        for (cgltf_size i = 0; i < pos_acc->count; i++)
+          read_vert(i);
+      }
+    }
+    model.parts.push_back(std::move(part));
+  }
+
+  for (cgltf_size ci = 0; ci < node->children_count; ci++)
+    glb_collect_part(node->children[ci], world, model);
+}
+
+inline GlbPartsModel load_glb_parts_from_memory(const unsigned char *data,
+                                                unsigned int len) {
+  GlbPartsModel model;
+
+  cgltf_options options = {};
+  cgltf_data *gltf = nullptr;
+  cgltf_result result = cgltf_parse(&options, data, len, &gltf);
+  if (result != cgltf_result_success) {
+    fprintf(stderr, "GLB parse failed: %d\n", result);
+    return model;
+  }
+
+  result = cgltf_load_buffers(&options, gltf, nullptr);
+  if (result != cgltf_result_success) {
+    fprintf(stderr, "GLB buffer load failed: %d\n", result);
+    cgltf_free(gltf);
+    return model;
+  }
+
+  GlbMat4 identity = glb_mat4_identity();
+  for (cgltf_size si = 0; si < gltf->scenes_count; si++) {
+    cgltf_scene *scene = &gltf->scenes[si];
+    for (cgltf_size ni = 0; ni < scene->nodes_count; ni++)
+      glb_collect_part(scene->nodes[ni], identity, model);
+  }
+
+  cgltf_free(gltf);
+  return model;
+}
+
 inline GlbModel load_glb_from_memory(const unsigned char *data,
                                      unsigned int len) {
   GlbModel model;

@@ -3,6 +3,8 @@
 #include "constants.h"
 #include "math.h"
 #include "renderer.h"
+#include <string>
+#include <vector>
 
 struct PlatformData {
   Vec3 min, max;
@@ -10,6 +12,12 @@ struct PlatformData {
 };
 
 bool aabb_overlap(Vec3 pmin, Vec3 pmax, Vec3 bmin, Vec3 bmax);
+
+struct BodyPart {
+  std::string name;
+  TexturedMesh mesh;
+  Vec3 pivot; // joint position in model space (where to rotate around)
+};
 
 class Player {
 public:
@@ -32,8 +40,13 @@ private:
   Vec3 pos_, vel_;
   float yaw_;
   bool on_ground_;
-  TexturedMesh mesh_;
+  bool moving_;
+  float walk_timer_;
+
+  std::vector<BodyPart> parts_;
   ShaderProgram tex_shader_;
+
+  int find_part(const char *name) const;
 };
 
 #endif // PLAYER_H

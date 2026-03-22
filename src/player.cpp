@@ -11,37 +11,49 @@ bool aabb_overlap(Vec3 pmin, Vec3 pmax, Vec3 bmin, Vec3 bmax) {
 }
 
 Player::Player()
-    : pos_({0, 1, 0}), vel_({0, 0, 0}), yaw_(0), on_ground_(false) {
-  GlbModel model =
-      load_glb_from_memory(assets_character_glb, assets_character_glb_len);
+    : pos_({0, 1, 0}), vel_({0, 0, 0}), yaw_(0), on_ground_(false),
+      moving_(false), walk_timer_(0) {
+  GlbPartsModel model = load_glb_parts_from_memory(assets_character_glb,
+                                                   assets_character_glb_len);
 
-  // Pack into pos(3) + normal(3) + uv(2) buffer
-  std::vector<float> buf;
-  buf.reserve(model.vertices.size() * 8);
-  for (const auto &v : model.vertices) {
-    buf.push_back(v.x);
-    buf.push_back(v.y);
-    buf.push_back(v.z);
-    buf.push_back(v.nx);
-    buf.push_back(v.ny);
-    buf.push_back(v.nz);
-    buf.push_back(v.u);
-    buf.push_back(v.v);
+  for (auto &part : model.parts) {
+    std::vector<float> buf;
+    buf.reserve(part.vertices.size() * 8);
+    for (const auto &v : part.vertices) {
+      buf.push_back(v.x);
+      buf.push_back(v.y);
+      buf.push_back(v.z);
+      buf.push_back(v.nx);
+      buf.push_back(v.ny);
+      buf.push_back(v.nz);
+      buf.push_back(v.u);
+      buf.push_back(v.v);
+    }
+
+    // Each TexturedMesh owns its texture, so load a separate copy per part
+    GLuint tex = load_texture_from_memory(assets_texture_character_png,
+                                          assets_texture_character_png_len);
+    parts_.push_back({part.name,
+                      TexturedMesh(buf, tex),
+                      {part.pivot_x, part.pivot_y, part.pivot_z}});
   }
 
-  GLuint tex = load_texture_from_memory(assets_texture_character_png,
-                                        assets_texture_character_png_len);
-  mesh_ = TexturedMesh(buf, tex);
   tex_shader_ = ShaderProgram::create_textured();
+}
+
+int Player::find_part(const char *name) const {
+  for (int i = 0; i < (int)parts_.size(); i++) {
+    if (parts_[i].name == name)
+      return i;
+  }
+  return -1;
 }
 
 void Player::handle_input(float move_x, float move_z, float cam_yaw,
                           bool jump) {
-  // Build camera-relative direction vectors
   Vec3 cam_fwd = {sinf(cam_yaw), 0, cosf(cam_yaw)};
   Vec3 cam_right = {cam_fwd.z, 0, -cam_fwd.x};
 
-  // Compute world-space movement from input
   Vec3 wish_dir = cam_fwd * move_z + cam_right * move_x;
   float len = sqrtf(wish_dir.x * wish_dir.x + wish_dir.z * wish_dir.z);
 
@@ -52,12 +64,13 @@ void Player::handle_input(float move_x, float move_z, float cam_yaw,
       vel_.x = wish_dir.x * MOVE_SPEED;
       vel_.z = wish_dir.z * MOVE_SPEED;
       yaw_ = atan2f(-wish_dir.x, wish_dir.z);
+      moving_ = true;
     } else {
       vel_.x = 0;
       vel_.z = 0;
+      moving_ = false;
     }
   }
-  // No user movement on air
 
   if (jump && on_ground_) {
     vel_.y = JUMP_VEL;
@@ -128,17 +141,67 @@ void Player::update_physics(const PlatformData *platforms, int count,
 
   pos_ = new_pos;
 
+  // Advance walk animation timer
+  if (on_ground_ && moving_) {
+    walk_timer_ += dt * 10.0f; // walk cycle speed
+  } else if (on_ground_) {
+    // Smoothly return to idle
+    walk_timer_ = 0;
+  }
+
   if (pos_.y < RESPAWN_Y) {
     pos_ = {0, 1, 0};
     vel_ = {0, 0, 0};
     on_ground_ = false;
+    walk_timer_ = 0;
   }
 }
 
 void Player::draw(const ShaderProgram & /*shader*/, const Mat4 &vp) const {
-  Mat4 model =
+  // Base transform: translate to world pos, rotate to face direction, scale
+  Mat4 base =
       mat4_translate(pos_) * mat4_rotate_y(yaw_) * mat4_scale(MODEL_SCALE);
+
+  // Animation angles
+  float leg_swing = 0;
+  float arm_swing = 0;
+
+  if (!on_ground_) {
+    // Jump pose: legs tucked forward, arms up
+    leg_swing = -0.4f;
+    arm_swing = -0.6f;
+  } else if (moving_) {
+    // Walk cycle: sinusoidal swing
+    leg_swing = sinf(walk_timer_) * 0.6f;
+    arm_swing = sinf(walk_timer_) * 0.5f;
+  }
+
   tex_shader_.use();
-  tex_shader_.set_mvp(vp * model);
-  mesh_.draw();
+
+  for (int i = 0; i < (int)parts_.size(); i++) {
+    const BodyPart &part = parts_[i];
+    Mat4 part_transform = Mat4::identity();
+
+    if (part.name == "leg-left") {
+      // Pivot at hip, swing forward/backward
+      part_transform = mat4_translate(part.pivot) * mat4_rotate_x(leg_swing) *
+                       mat4_translate(-part.pivot);
+    } else if (part.name == "leg-right") {
+      // Opposite phase from left leg
+      part_transform = mat4_translate(part.pivot) * mat4_rotate_x(-leg_swing) *
+                       mat4_translate(-part.pivot);
+    } else if (part.name == "arm-left") {
+      // Arms swing opposite to legs
+      part_transform = mat4_translate(part.pivot) * mat4_rotate_x(-arm_swing) *
+                       mat4_translate(-part.pivot);
+    } else if (part.name == "arm-right") {
+      part_transform = mat4_translate(part.pivot) * mat4_rotate_x(arm_swing) *
+                       mat4_translate(-part.pivot);
+    }
+    // head and torso: no animation rotation (identity)
+
+    Mat4 mvp = vp * base * part_transform;
+    tex_shader_.set_mvp(mvp);
+    part.mesh.draw();
+  }
 }
