@@ -12,14 +12,31 @@ bool aabb_overlap(Vec3 pmin, Vec3 pmax, Vec3 bmin, Vec3 bmax) {
 
 Player::Player()
     : pos_({0, 1, 0}), vel_({0, 0, 0}), yaw_(0), on_ground_(false),
-      moving_(false), walk_timer_(0) {
-  GlbPartsModel model = load_glb_parts_from_memory(assets_character_glb,
-                                                   assets_character_glb_len);
+      moving_(false), anim_state_(AnimState::Idle), anim_time_(0),
+      current_clip_(nullptr) {
+  GlbLoadResult loaded =
+      load_glb_with_animations(assets_character_glb, assets_character_glb_len);
 
-  for (auto &part : model.parts) {
+  animations_ = std::move(loaded.animations);
+
+  // Store rest poses for hierarchy nodes
+  for (const auto &rp : loaded.parts.node_rest_poses) {
+    NodeRest nr;
+    nr.translation = rp.translation;
+    nr.rotation = rp.rotation;
+    nr.scale = rp.scale;
+
+    if (rp.name == "root")
+      rest_root_ = nr;
+    else if (rp.name == "torso")
+      rest_torso_ = nr;
+  }
+
+  // Build mesh parts
+  for (auto &glb_part : loaded.parts.parts) {
     std::vector<float> buf;
-    buf.reserve(part.vertices.size() * 8);
-    for (const auto &v : part.vertices) {
+    buf.reserve(glb_part.vertices.size() * 8);
+    for (const auto &v : glb_part.vertices) {
       buf.push_back(v.x);
       buf.push_back(v.y);
       buf.push_back(v.z);
@@ -30,23 +47,88 @@ Player::Player()
       buf.push_back(v.v);
     }
 
-    // Each TexturedMesh owns its texture, so load a separate copy per part
     GLuint tex = load_texture_from_memory(assets_texture_character_png,
                                           assets_texture_character_png_len);
-    parts_.push_back({part.name,
-                      TexturedMesh(buf, tex),
-                      {part.pivot_x, part.pivot_y, part.pivot_z}});
+    parts_.push_back({glb_part.name, TexturedMesh(buf, tex)});
+
+    // Store per-part rest pose
+    NodeRest pr;
+    for (const auto &rp : loaded.parts.node_rest_poses) {
+      if (rp.name == glb_part.name) {
+        pr.translation = rp.translation;
+        pr.rotation = rp.rotation;
+        pr.scale = rp.scale;
+        break;
+      }
+    }
+    part_rest_.push_back(pr);
+
+    // Determine parent type: torso children vs root children
+    if (glb_part.parent_name == "torso")
+      part_parent_type_.push_back(1); // torso child
+    else
+      part_parent_type_.push_back(0); // root child (legs, torso itself)
   }
 
   tex_shader_ = ShaderProgram::create_textured();
+
+  // Start with idle animation
+  set_animation(AnimState::Idle);
 }
 
-int Player::find_part(const char *name) const {
-  for (int i = 0; i < (int)parts_.size(); i++) {
-    if (parts_[i].name == name)
-      return i;
+void Player::set_animation(AnimState state) {
+  if (state == anim_state_ && current_clip_)
+    return;
+
+  anim_state_ = state;
+  anim_time_ = 0;
+
+  const char *clip_name = "static";
+  switch (state) {
+  case AnimState::Idle:
+    clip_name = "idle";
+    break;
+  case AnimState::Walk:
+    clip_name = "walk";
+    break;
+  case AnimState::Jump:
+    clip_name = "static";
+    break;
+  case AnimState::Fall:
+    clip_name = "static";
+    break;
   }
-  return -1;
+
+  current_clip_ = animations_.find_clip(clip_name);
+}
+
+// Get the animated TRS matrix for a node, falling back to rest pose
+Mat4 Player::compute_node_trs(const std::string &name, const AnimClip *clip,
+                              float t) const {
+  NodeRest rest;
+  if (name == "root")
+    rest = rest_root_;
+  else if (name == "torso")
+    rest = rest_torso_;
+
+  Vec3 trans = rest.translation;
+  Quat rot = rest.rotation;
+  Vec3 scl = rest.scale;
+
+  if (clip) {
+    const NodeChannels *ch = clip->find_node(name);
+    if (ch) {
+      NodePose pose = sample_node(*ch, t);
+      if (!ch->trans_times.empty())
+        trans = pose.translation;
+      if (!ch->rot_times.empty())
+        rot = pose.rotation;
+      if (!ch->scale_times.empty())
+        scl = pose.scale;
+    }
+  }
+
+  return mat4_trs(trans, rot, scl);
 }
 
 void Player::handle_input(float move_x, float move_z, float cam_yaw,
@@ -141,66 +223,87 @@ void Player::update_physics(const PlatformData *platforms, int count,
 
   pos_ = new_pos;
 
-  // Advance walk animation timer
-  if (on_ground_ && moving_) {
-    walk_timer_ += dt * 10.0f; // walk cycle speed
-  } else if (on_ground_) {
-    // Smoothly return to idle
-    walk_timer_ = 0;
+  // Animation state machine
+  if (!on_ground_ && vel_.y > 0)
+    set_animation(AnimState::Jump);
+  else if (!on_ground_ && vel_.y <= 0)
+    set_animation(AnimState::Fall);
+  else if (on_ground_ && moving_)
+    set_animation(AnimState::Walk);
+  else if (on_ground_)
+    set_animation(AnimState::Idle);
+
+  // Advance animation time
+  if (current_clip_ && current_clip_->duration > 0) {
+    anim_time_ += dt;
+    // Loop for walk/idle, clamp for jump
+    if (anim_state_ == AnimState::Jump) {
+      if (anim_time_ > current_clip_->duration)
+        anim_time_ = current_clip_->duration;
+    } else {
+      anim_time_ = fmodf(anim_time_, current_clip_->duration);
+    }
   }
 
   if (pos_.y < RESPAWN_Y) {
     pos_ = {0, 1, 0};
     vel_ = {0, 0, 0};
     on_ground_ = false;
-    walk_timer_ = 0;
+    set_animation(AnimState::Fall);
   }
 }
 
 void Player::draw(const ShaderProgram & /*shader*/, const Mat4 &vp) const {
-  // Base transform: translate to world pos, rotate to face direction, scale
+  // Player world transform: translate + yaw + scale
   Mat4 base =
       mat4_translate(pos_) * mat4_rotate_y(yaw_) * mat4_scale(MODEL_SCALE);
 
-  // Animation angles
-  float leg_swing = 0;
-  float arm_swing = 0;
-
-  if (!on_ground_) {
-    // Jump pose: legs tucked forward, arms up
-    leg_swing = -0.4f;
-    arm_swing = -0.6f;
-  } else if (moving_) {
-    // Walk cycle: sinusoidal swing
-    leg_swing = sinf(walk_timer_) * 0.6f;
-    arm_swing = sinf(walk_timer_) * 0.5f;
-  }
+  // Compute animated transforms for hierarchy nodes
+  Mat4 root_trs = compute_node_trs("root", current_clip_, anim_time_);
+  Mat4 torso_trs = compute_node_trs("torso", current_clip_, anim_time_);
 
   tex_shader_.use();
 
   for (int i = 0; i < (int)parts_.size(); i++) {
     const BodyPart &part = parts_[i];
-    Mat4 part_transform = Mat4::identity();
+    const NodeRest &rest = part_rest_[i];
 
-    if (part.name == "leg-left") {
-      // Pivot at hip, swing forward/backward
-      part_transform = mat4_translate(part.pivot) * mat4_rotate_x(leg_swing) *
-                       mat4_translate(-part.pivot);
-    } else if (part.name == "leg-right") {
-      // Opposite phase from left leg
-      part_transform = mat4_translate(part.pivot) * mat4_rotate_x(-leg_swing) *
-                       mat4_translate(-part.pivot);
-    } else if (part.name == "arm-left") {
-      // Arms swing opposite to legs
-      part_transform = mat4_translate(part.pivot) * mat4_rotate_x(-arm_swing) *
-                       mat4_translate(-part.pivot);
-    } else if (part.name == "arm-right") {
-      part_transform = mat4_translate(part.pivot) * mat4_rotate_x(arm_swing) *
-                       mat4_translate(-part.pivot);
+    // Get this part's animated local TRS
+    Vec3 trans = rest.translation;
+    Quat rot = rest.rotation;
+    Vec3 scl = rest.scale;
+
+    if (current_clip_) {
+      const NodeChannels *ch = current_clip_->find_node(part.name);
+      if (ch) {
+        NodePose pose = sample_node(*ch, anim_time_);
+        if (!ch->trans_times.empty())
+          trans = pose.translation;
+        if (!ch->rot_times.empty())
+          rot = pose.rotation;
+        if (!ch->scale_times.empty())
+          scl = pose.scale;
+      }
     }
-    // head and torso: no animation rotation (identity)
 
-    Mat4 mvp = vp * base * part_transform;
+    Mat4 local_trs = mat4_trs(trans, rot, scl);
+
+    // Build world transform through hierarchy
+    // root → torso → part (for torso children)
+    // root → part (for root children)
+    Mat4 node_world;
+    if (part_parent_type_[i] == 1) {
+      // Child of torso: root * torso * local
+      node_world = root_trs * torso_trs * local_trs;
+    } else if (part.name == "torso") {
+      // Torso itself: root * torso_animated
+      node_world = root_trs * local_trs;
+    } else {
+      // Direct child of root (legs): root * local
+      node_world = root_trs * local_trs;
+    }
+
+    Mat4 mvp = vp * base * node_world;
     tex_shader_.set_mvp(mvp);
     part.mesh.draw();
   }

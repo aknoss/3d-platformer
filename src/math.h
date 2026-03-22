@@ -132,4 +132,94 @@ inline Mat4 mat4_look_at(Vec3 eye, Vec3 target, Vec3 up) {
   return r;
 }
 
+// --- Quaternion ---
+
+struct Quat {
+  float x, y, z, w;
+  Quat() : x(0), y(0), z(0), w(1) {}
+  Quat(float x, float y, float z, float w) : x(x), y(y), z(z), w(w) {}
+};
+
+inline float quat_dot(const Quat &a, const Quat &b) {
+  return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
+}
+
+inline Quat quat_normalize(const Quat &q) {
+  float len = sqrtf(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
+  if (len < 1e-8f)
+    return {0, 0, 0, 1};
+  return {q.x / len, q.y / len, q.z / len, q.w / len};
+}
+
+inline Quat quat_inverse(const Quat &q) { return {-q.x, -q.y, -q.z, q.w}; }
+
+inline Quat quat_mul(const Quat &a, const Quat &b) {
+  return {a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
+          a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+          a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
+          a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z};
+}
+
+inline Quat quat_slerp(const Quat &a, const Quat &b, float t) {
+  float d = quat_dot(a, b);
+  Quat b2 = b;
+  // Shortest path
+  if (d < 0.0f) {
+    b2 = {-b.x, -b.y, -b.z, -b.w};
+    d = -d;
+  }
+  // Fall back to nlerp for nearly identical quaternions
+  if (d > 0.9995f) {
+    return quat_normalize({a.x + (b2.x - a.x) * t, a.y + (b2.y - a.y) * t,
+                           a.z + (b2.z - a.z) * t, a.w + (b2.w - a.w) * t});
+  }
+  float theta = acosf(d);
+  float sin_theta = sinf(theta);
+  float wa = sinf((1.0f - t) * theta) / sin_theta;
+  float wb = sinf(t * theta) / sin_theta;
+  return {a.x * wa + b2.x * wb, a.y * wa + b2.y * wb, a.z * wa + b2.z * wb,
+          a.w * wa + b2.w * wb};
+}
+
+inline Mat4 quat_to_mat4(const Quat &q) {
+  Mat4 r = Mat4::identity();
+  float xx = q.x * q.x, yy = q.y * q.y, zz = q.z * q.z;
+  float xy = q.x * q.y, xz = q.x * q.z, yz = q.y * q.z;
+  float wx = q.w * q.x, wy = q.w * q.y, wz = q.w * q.z;
+  r.m[0] = 1 - 2 * (yy + zz);
+  r.m[1] = 2 * (xy + wz);
+  r.m[2] = 2 * (xz - wy);
+  r.m[4] = 2 * (xy - wz);
+  r.m[5] = 1 - 2 * (xx + zz);
+  r.m[6] = 2 * (yz + wx);
+  r.m[8] = 2 * (xz + wy);
+  r.m[9] = 2 * (yz - wx);
+  r.m[10] = 1 - 2 * (xx + yy);
+  return r;
+}
+
+inline Vec3 vec3_lerp(const Vec3 &a, const Vec3 &b, float t) {
+  return a + (b - a) * t;
+}
+
+// Build TRS matrix from translation, rotation (quaternion), scale
+inline Mat4 mat4_trs(const Vec3 &t, const Quat &r, const Vec3 &s) {
+  Mat4 m = quat_to_mat4(r);
+  // Apply scale to rotation columns
+  m.m[0] *= s.x;
+  m.m[1] *= s.x;
+  m.m[2] *= s.x;
+  m.m[4] *= s.y;
+  m.m[5] *= s.y;
+  m.m[6] *= s.y;
+  m.m[8] *= s.z;
+  m.m[9] *= s.z;
+  m.m[10] *= s.z;
+  // Set translation
+  m.m[12] = t.x;
+  m.m[13] = t.y;
+  m.m[14] = t.z;
+  return m;
+}
+
 #endif // MATH_H
