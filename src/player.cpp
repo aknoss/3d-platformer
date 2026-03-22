@@ -1,8 +1,8 @@
 #include "player.h"
-#include "obj_loader.h"
+#include "glb_loader.h"
 #include <cmath>
 
-#include "character_obj.h"
+#include "character_glb.h"
 #include "character_tex.h"
 
 bool aabb_overlap(Vec3 pmin, Vec3 pmax, Vec3 bmin, Vec3 bmax) {
@@ -12,8 +12,8 @@ bool aabb_overlap(Vec3 pmin, Vec3 pmax, Vec3 bmin, Vec3 bmax) {
 
 Player::Player()
     : pos_({0, 1, 0}), vel_({0, 0, 0}), yaw_(0), on_ground_(false) {
-  ObjModel model =
-      load_obj_from_memory(assets_character_obj, assets_character_obj_len);
+  GlbModel model =
+      load_glb_from_memory(assets_character_glb, assets_character_glb_len);
 
   // Pack into pos(3) + normal(3) + uv(2) buffer
   std::vector<float> buf;

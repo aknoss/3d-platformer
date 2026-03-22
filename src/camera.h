@@ -1,6 +1,5 @@
 #ifndef CAMERA_H
 #define CAMERA_H
-#pragma once
 #include "constants.h"
 #include "math.h"
 #include <cmath>

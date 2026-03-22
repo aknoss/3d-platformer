@@ -107,7 +107,7 @@ ShaderProgram ShaderProgram::create_textured() {
 
 GLuint load_texture_from_memory(const unsigned char *data, unsigned int len) {
   int w, h, channels;
-  stbi_set_flip_vertically_on_load(1);
+  stbi_set_flip_vertically_on_load(0);
   unsigned char *pixels =
       stbi_load_from_memory(data, (int)len, &w, &h, &channels, 4);
   if (!pixels) {
