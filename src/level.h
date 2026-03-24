@@ -51,7 +51,7 @@ public:
   void update(float dt, Vec3 player_pos);
   void draw(const ShaderProgram &shader, const Mat4 &vp) const;
 
-  const PlatformData *platform_data() const { return platforms_.data(); }
+  PlatformData *platform_data() { return platforms_.data(); }
   int platform_count() const { return (int)platforms_.size(); }
   int coins_collected() const { return coins_collected_; }
   int total_coins() const { return total_coins_; }
@@ -59,6 +59,7 @@ public:
 private:
   std::vector<PlatformData> platforms_;
   std::vector<Mesh> platform_meshes_;
+  std::vector<Vec3> platform_origins_; // original min for tracking push offset
   std::vector<Coin> coins_;
   Mesh coin_mesh_;
   int coins_collected_;

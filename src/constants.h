@@ -18,6 +18,7 @@ inline constexpr float FAR_PLANE = 100.0f;
 inline constexpr float MOUSE_SENS = 0.003f;
 inline constexpr float COIN_COLLECT_DIST = 1.2f;
 inline constexpr float RESPAWN_Y = -10.0f;
+inline constexpr float PUSH_SPEED = 2.0f;
 // ~16.67ms per frame (60 FPS cap)
 inline constexpr uint64_t FRAME_TIME_NS = 1000000000ULL / 60;
 

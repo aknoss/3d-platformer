@@ -10,6 +10,7 @@
 struct PlatformData {
   Vec3 min, max;
   Vec3 color;
+  bool pushable = false;
 };
 
 bool aabb_overlap(Vec3 pmin, Vec3 pmax, Vec3 bmin, Vec3 bmax);
@@ -34,7 +35,7 @@ public:
   Player();
 
   void handle_input(float move_x, float move_z, float cam_yaw, bool jump);
-  void update_physics(const PlatformData *platforms, int count, float dt);
+  void update_physics(PlatformData *platforms, int count, float dt);
   void draw(const ShaderProgram &shader, const Mat4 &vp) const;
 
   Vec3 pos() const { return pos_; }

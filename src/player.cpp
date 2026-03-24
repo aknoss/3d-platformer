@@ -160,8 +160,7 @@ void Player::handle_input(float move_x, float move_z, float cam_yaw,
   }
 }
 
-void Player::update_physics(const PlatformData *platforms, int count,
-                            float dt) {
+void Player::update_physics(PlatformData *platforms, int count, float dt) {
   vel_.y += GRAVITY * dt;
   Vec3 new_pos = pos_ + vel_ * dt;
 
@@ -171,7 +170,7 @@ void Player::update_physics(const PlatformData *platforms, int count,
   on_ground_ = false;
 
   for (int i = 0; i < count; i++) {
-    const PlatformData &pl = platforms[i];
+    PlatformData &pl = platforms[i];
     if (!aabb_overlap(pmin, pmax, pl.min, pl.max))
       continue;
 
@@ -189,32 +188,59 @@ void Player::update_physics(const PlatformData *platforms, int count,
       }
     }
 
-    switch (min_axis) {
-    case 0:
-      new_pos.x = pl.min.x - HALF_W;
-      vel_.x = 0;
-      break;
-    case 1:
-      new_pos.x = pl.max.x + HALF_W;
-      vel_.x = 0;
-      break;
-    case 2:
-      new_pos.y = pl.min.y - HEIGHT;
-      vel_.y = 0;
-      break;
-    case 3:
-      new_pos.y = pl.max.y;
-      vel_.y = 0;
-      on_ground_ = true;
-      break;
-    case 4:
-      new_pos.z = pl.min.z - HALF_W;
-      vel_.z = 0;
-      break;
-    case 5:
-      new_pos.z = pl.max.z + HALF_W;
-      vel_.z = 0;
-      break;
+    // Push pushable platforms on X/Z axes instead of blocking
+    if (pl.pushable && (min_axis <= 1 || min_axis >= 4)) {
+      float push = PUSH_SPEED * dt;
+      switch (min_axis) {
+      case 0: // player coming from -X side → push platform in +X
+        pl.min.x += push;
+        pl.max.x += push;
+        new_pos.x = pl.min.x - HALF_W;
+        break;
+      case 1: // player coming from +X side → push platform in -X
+        pl.min.x -= push;
+        pl.max.x -= push;
+        new_pos.x = pl.max.x + HALF_W;
+        break;
+      case 4: // player coming from -Z side → push platform in +Z
+        pl.min.z += push;
+        pl.max.z += push;
+        new_pos.z = pl.min.z - HALF_W;
+        break;
+      case 5: // player coming from +Z side → push platform in -Z
+        pl.min.z -= push;
+        pl.max.z -= push;
+        new_pos.z = pl.max.z + HALF_W;
+        break;
+      }
+    } else {
+      switch (min_axis) {
+      case 0:
+        new_pos.x = pl.min.x - HALF_W;
+        vel_.x = 0;
+        break;
+      case 1:
+        new_pos.x = pl.max.x + HALF_W;
+        vel_.x = 0;
+        break;
+      case 2:
+        new_pos.y = pl.min.y - HEIGHT;
+        vel_.y = 0;
+        break;
+      case 3:
+        new_pos.y = pl.max.y;
+        vel_.y = 0;
+        on_ground_ = true;
+        break;
+      case 4:
+        new_pos.z = pl.min.z - HALF_W;
+        vel_.z = 0;
+        break;
+      case 5:
+        new_pos.z = pl.max.z + HALF_W;
+        vel_.z = 0;
+        break;
+      }
     }
 
     pmin = {new_pos.x - HALF_W, new_pos.y, new_pos.z - HALF_W};
