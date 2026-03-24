@@ -10,10 +10,9 @@ public:
 
   void rotate(float mouse_dx) { yaw_ -= mouse_dx * MOUSE_SENS; }
 
-  void follow(Vec3 target_pos, float dt) {
+  void follow(Vec3 target_pos) {
     Vec3 cam_forward = {sinf(yaw_), 0, cosf(yaw_)};
-    Vec3 desired = target_pos - cam_forward * CAM_DIST + Vec3(0, CAM_HEIGHT, 0);
-    pos_ = pos_ + (desired - pos_) * CAM_LERP * dt;
+    pos_ = target_pos - cam_forward * CAM_DIST + Vec3(0, CAM_HEIGHT, 0);
   }
 
   Mat4 view_matrix(Vec3 target_pos) const {

@@ -89,7 +89,7 @@ int main(int /*argc*/, char * /*argv*/[]) {
     player.handle_input(move_x, move_z, camera.yaw(), jump_pressed);
     player.update_physics(level.platform_data(), level.platform_count(), dt);
     level.update(dt, player.pos());
-    camera.follow(player.pos(), dt);
+    camera.follow(player.pos());
 
     int win_w, win_h;
     SDL_GetWindowSizeInPixels(window, &win_w, &win_h);
