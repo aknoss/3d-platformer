@@ -41,6 +41,8 @@ public:
 
   Vec3 pos() const { return pos_; }
   float yaw() const { return yaw_; }
+  void set_spawn(Vec3 s) { spawn_pos_ = s; }
+  void respawn();
 
   ShaderProgram &textured_shader() { return tex_shader_; }
 
@@ -50,6 +52,7 @@ private:
   static constexpr float MODEL_SCALE = 1.5f / 2.7f;
 
   Vec3 pos_, vel_;
+  Vec3 spawn_pos_;
   float yaw_;
   bool on_ground_;
   bool moving_;

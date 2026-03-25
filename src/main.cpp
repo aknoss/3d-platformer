@@ -6,7 +6,7 @@
 #include "camera.h"
 #include "constants.h"
 #include "hud.h"
-#include "level.h"
+#include "level_manager.h"
 #include "player.h"
 #include "renderer.h"
 
@@ -45,8 +45,10 @@ int main(int /*argc*/, char * /*argv*/[]) {
   glClearColor(0.4f, 0.6f, 1.0f, 1.0f);
 
   ShaderProgram shader = ShaderProgram::create_default();
-  Level level;
+  LevelManager manager;
   Player player;
+  player.set_spawn(manager.spawn_pos());
+  player.respawn();
   Camera camera;
   HUD hud;
 
@@ -87,13 +89,20 @@ int main(int /*argc*/, char * /*argv*/[]) {
 
     camera.rotate(mouse_dx);
     player.handle_input(move_x, move_z, camera.yaw(), jump_pressed);
-    player.update_physics(level.platform_data(), level.platform_count(), dt);
-    level.update(dt, player.pos());
+    player.update_physics(manager.current_level().platform_data(),
+                          manager.current_level().platform_count(), dt);
+    manager.current_level().update(dt, player.pos());
+
+    if (manager.check_star_collected()) {
+      player.set_spawn(manager.spawn_pos());
+      player.respawn();
+    }
+
     camera.follow(player.pos());
 
     int win_w, win_h;
     SDL_GetWindowSizeInPixels(window, &win_w, &win_h);
-    hud.update(level.coins_collected(), win_h);
+    hud.update(manager.current_level().coins_collected(), win_h);
 
     glViewport(0, 0, win_w, win_h);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -104,7 +113,7 @@ int main(int /*argc*/, char * /*argv*/[]) {
                                  FAR_PLANE);
     Mat4 vp = proj * view;
 
-    level.draw(shader, vp);
+    manager.current_level().draw(shader, vp);
     player.draw(shader, vp);
     shader.use();
     hud.draw(shader, win_w, win_h);

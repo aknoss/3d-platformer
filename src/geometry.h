@@ -206,4 +206,58 @@ inline std::vector<float> gen_hud_coin_icon(float cx, float cy, float radius) {
   return buf;
 }
 
+inline std::vector<float> gen_star(float radius, float thickness, Vec3 col) {
+  std::vector<float> buf;
+  float inner_radius = radius * 0.4f;
+
+  auto clamp01 = [](float v) {
+    return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v);
+  };
+  Vec3 bright = {clamp01(col.x * 1.2f), clamp01(col.y * 1.2f),
+                 clamp01(col.z * 1.2f)};
+  Vec3 dark = {col.x * 0.5f, col.y * 0.5f, col.z * 0.5f};
+  Vec3 side = {col.x * 0.7f, col.y * 0.7f, col.z * 0.7f};
+
+  // Build 10 vertices of the star outline (alternating outer/inner)
+  // Star is in the XY plane (stands upright), Z is thickness
+  float sx[10], sy[10];
+  for (int i = 0; i < 10; i++) {
+    float angle = (float)i / 10.0f * 2.0f * (float)M_PI - (float)M_PI / 2.0f;
+    float r = (i % 2 == 0) ? radius : inner_radius;
+    sx[i] = cosf(angle) * r;
+    sy[i] = sinf(angle) * r;
+  }
+
+  float ht = thickness * 0.5f;
+
+  // Front face (+Z)
+  for (int i = 0; i < 10; i++) {
+    int j = (i + 1) % 10;
+    push_vert(buf, 0, 0, ht, bright.x, bright.y, bright.z);
+    push_vert(buf, sx[i], sy[i], ht, col.x, col.y, col.z);
+    push_vert(buf, sx[j], sy[j], ht, col.x, col.y, col.z);
+  }
+
+  // Back face (-Z, reversed winding)
+  for (int i = 0; i < 10; i++) {
+    int j = (i + 1) % 10;
+    push_vert(buf, 0, 0, -ht, dark.x, dark.y, dark.z);
+    push_vert(buf, sx[j], sy[j], -ht, dark.x, dark.y, dark.z);
+    push_vert(buf, sx[i], sy[i], -ht, dark.x, dark.y, dark.z);
+  }
+
+  // Edge faces (connecting front and back)
+  for (int i = 0; i < 10; i++) {
+    int j = (i + 1) % 10;
+    push_vert(buf, sx[i], sy[i], ht, side.x, side.y, side.z);
+    push_vert(buf, sx[j], sy[j], ht, side.x, side.y, side.z);
+    push_vert(buf, sx[j], sy[j], -ht, side.x, side.y, side.z);
+    push_vert(buf, sx[i], sy[i], ht, side.x, side.y, side.z);
+    push_vert(buf, sx[j], sy[j], -ht, side.x, side.y, side.z);
+    push_vert(buf, sx[i], sy[i], -ht, side.x, side.y, side.z);
+  }
+
+  return buf;
+}
+
 #endif // GEOMETRY_H

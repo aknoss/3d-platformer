@@ -11,9 +11,9 @@ bool aabb_overlap(Vec3 pmin, Vec3 pmax, Vec3 bmin, Vec3 bmax) {
 }
 
 Player::Player()
-    : pos_({0, 1, 0}), vel_({0, 0, 0}), yaw_(0), on_ground_(false),
-      moving_(false), anim_state_(AnimState::Idle), anim_time_(0),
-      current_clip_(nullptr) {
+    : pos_({0, 1, 0}), vel_({0, 0, 0}), spawn_pos_({0, 1, 0}), yaw_(0),
+      on_ground_(false), moving_(false), anim_state_(AnimState::Idle),
+      anim_time_(0), current_clip_(nullptr) {
   GlbLoadResult loaded =
       load_glb_with_animations(assets_character_glb, assets_character_glb_len);
 
@@ -267,10 +267,7 @@ void Player::update_physics(PlatformData *platforms, int count, float dt) {
   }
 
   if (pos_.y < RESPAWN_Y) {
-    pos_ = {0, 1, 0};
-    vel_ = {0, 0, 0};
-    on_ground_ = false;
-    set_animation(AnimState::Fall);
+    respawn();
   }
 }
 
@@ -285,4 +282,11 @@ void Player::draw(const ShaderProgram & /*shader*/, const Mat4 &vp) const {
     tex_shader_.set_mvp(mvp);
     part.mesh.draw();
   }
+}
+
+void Player::respawn() {
+  pos_ = spawn_pos_;
+  vel_ = {0, 0, 0};
+  on_ground_ = false;
+  set_animation(AnimState::Fall);
 }

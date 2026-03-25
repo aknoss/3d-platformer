@@ -1,37 +1,28 @@
 #include "level.h"
+#include <cmath>
 
-Level::Level() {
+Level::Level()
+    : coins_collected_(0), total_coins_(0), star_pos_({0, 0, 0}), star_spin_(0),
+      star_collected_(true) {}
 
-  PlatformData platform_defs[] = {
-      {{-15, -0.5f, -15}, {15, 0, 15}, {0.2f, 0.7f, 0.2f}, false},
-      {{3, 0, 3}, {7, 1.5f, 7}, {0.6f, 0.4f, 0.2f}, true},
-      {{-8, 0, -3}, {-4, 2.5f, 1}, {0.5f, 0.5f, 0.5f}, true},
-      {{-3, 0, 8}, {1, 1.0f, 12}, {0.6f, 0.4f, 0.2f}, true},
-      {{8, 0, -8}, {12, 3.5f, -4}, {0.5f, 0.5f, 0.5f}, true},
-      {{-10, 0, -10}, {-6, 4.0f, -7}, {0.6f, 0.4f, 0.2f}, true},
-      {{5, 0, -2}, {9, 2.0f, 2}, {0.5f, 0.5f, 0.5f}, true},
-  };
-
-  int num_plats = sizeof(platform_defs) / sizeof(platform_defs[0]);
-  for (int i = 0; i < num_plats; i++) {
-    platforms_.push_back(platform_defs[i]);
-    platform_meshes_.push_back(Mesh(gen_box(
-        platform_defs[i].min, platform_defs[i].max, platform_defs[i].color)));
-    platform_origins_.push_back(platform_defs[i].min);
+Level::Level(const LevelData &data)
+    : coins_collected_(0), total_coins_(0), star_spin_(0),
+      star_collected_(false) {
+  for (const auto &p : data.platforms) {
+    platforms_.push_back(p);
+    platform_meshes_.push_back(Mesh(gen_box(p.min, p.max, p.color)));
+    platform_origins_.push_back(p.min);
   }
 
-  Vec3 coin_positions[] = {
-      {5, 2.5f, 5},      {-6, 3.5f, -1}, {-1, 2.0f, 10}, {10, 4.5f, -6},
-      {-8, 5.0f, -8.5f}, {7, 3.0f, 0},   {0, 1.0f, 0},   {-12, 1.0f, 12},
-  };
-  int num_coins = sizeof(coin_positions) / sizeof(coin_positions[0]);
-  for (int i = 0; i < num_coins; i++) {
-    coins_.push_back(Coin(coin_positions[i]));
+  for (const auto &c : data.coins) {
+    coins_.push_back(Coin(c));
   }
-  total_coins_ = num_coins;
-  coins_collected_ = 0;
+  total_coins_ = (int)data.coins.size();
 
   coin_mesh_ = Mesh(gen_octagon(0.4f, 0.1f, {1.0f, 0.85f, 0.0f}));
+
+  star_pos_ = data.star_pos;
+  star_mesh_ = Mesh(gen_star(0.6f, 0.15f, {1.0f, 0.9f, 0.1f}));
 }
 
 void Level::update(float dt, Vec3 player_pos) {
@@ -39,6 +30,15 @@ void Level::update(float dt, Vec3 player_pos) {
     c.update(dt);
     if (c.try_collect(player_pos)) {
       coins_collected_++;
+    }
+  }
+
+  if (!star_collected_) {
+    star_spin_ += 2.0f * dt;
+    Vec3 diff = player_pos - star_pos_;
+    diff.y += 0.75f; // offset to player center
+    if (diff.length() < 2.0f) {
+      star_collected_ = true;
     }
   }
 }
@@ -52,5 +52,13 @@ void Level::draw(const ShaderProgram &shader, const Mat4 &vp) const {
   }
   for (const auto &c : coins_) {
     c.draw(shader, vp, coin_mesh_);
+  }
+
+  if (!star_collected_) {
+    float bob = sinf(star_spin_ * 1.5f) * 0.3f;
+    Mat4 model = mat4_translate(star_pos_ + Vec3(0, 0.8f + bob, 0)) *
+                 mat4_rotate_y(star_spin_);
+    shader.set_mvp(vp * model);
+    star_mesh_.draw();
   }
 }

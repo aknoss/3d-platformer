@@ -2,6 +2,7 @@
 #define LEVEL_H
 #include "constants.h"
 #include "geometry.h"
+#include "level_data.h"
 #include "math.h"
 #include "player.h"
 #include "renderer.h"
@@ -47,6 +48,7 @@ private:
 class Level {
 public:
   Level();
+  explicit Level(const LevelData &data);
 
   void update(float dt, Vec3 player_pos);
   void draw(const ShaderProgram &shader, const Mat4 &vp) const;
@@ -55,15 +57,21 @@ public:
   int platform_count() const { return (int)platforms_.size(); }
   int coins_collected() const { return coins_collected_; }
   int total_coins() const { return total_coins_; }
+  bool star_collected() const { return star_collected_; }
 
 private:
   std::vector<PlatformData> platforms_;
   std::vector<Mesh> platform_meshes_;
-  std::vector<Vec3> platform_origins_; // original min for tracking push offset
+  std::vector<Vec3> platform_origins_;
   std::vector<Coin> coins_;
   Mesh coin_mesh_;
   int coins_collected_;
   int total_coins_;
+
+  Vec3 star_pos_;
+  float star_spin_;
+  bool star_collected_;
+  Mesh star_mesh_;
 };
 
 #endif // LEVEL_H
